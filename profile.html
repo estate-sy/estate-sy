@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" id="htmlRoot">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم - العقارات السورية</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="img/favicon.png">
+    <link rel="apple-touch-icon" href="img/favicon.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="العقارات السورية">
+    <meta name="theme-color" content="#1e3a5f">
+</head>
+<body onclick="closeAllMenus()">
+
+<div id="se-toast"></div>
+
+<div id="loadingSpinner" style="position:fixed;inset:0;background:rgba(15,31,51,0.94);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:99999;flex-direction:column;gap:1.5rem;">
+    <div style="width:5rem;height:5rem;border:5px solid var(--color-primary);border-top-color:transparent;border-radius:50%;" class="animate-spin"></div>
+    <div style="text-align:center;">
+        <p style="color:white;font-size:1.25rem;font-weight:bold;margin-bottom:0.5rem;">العقارات السورية</p>
+        <p style="color:var(--color-accent);font-size:0.875rem;">جاري التحميل...</p>
+    </div>
+</div>
+
+<header class="gradient-profile text-white p-4 sticky top-0 z-50 flex justify-between items-center shadow-lg">
+    <a class="brand-block" href="index.html">
+        <img class="brand-img" src="img/logo.png" alt="العقارات السورية">
+        <div class="brand-texts">
+            <span class="brand-text-en">Syria Estate</span>
+            <span class="brand-text-ar">العقارات السورية</span>
+        </div>
+    </a>
+    <div class="flex items-center gap-3">
+        <button onclick="window.location.href='index.html'" class="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center border border-white/20 hover:bg-white/20 transition">
+            <i class="fas fa-home"></i>
+        </button>
+        <div class="relative">
+            <button onclick="toggleMenu(event, 'settingsMenu')" class="p-2 hover:bg-white/10 rounded-full transition">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div id="settingsMenu" class="dropdown-menu left-4 text-gray-700" onclick="event.stopPropagation()">
+                <div class="settings-row" onclick="switchDashTab('profile')">
+                    <span class="text-sm font-bold flex items-center gap-3"><i class="fas fa-user-cog text-blue-900"></i> الملف الشخصي</span>
+                </div>
+                <div class="settings-row" onclick="shareMyProfile()">
+                    <span class="text-sm font-bold flex items-center gap-3"><i class="fas fa-share-alt text-blue-900"></i> مشاركة ملفي الشخصي</span>
+                </div>
+                <div class="settings-row" onclick="toggleThemeBtn()">
+                    <span class="text-sm font-bold flex items-center gap-3"><i class="fas fa-moon text-blue-900"></i> الوضع الليلي / النهاري</span>
+                </div>
+                <div class="settings-row" onclick="toggleLangBtn()">
+                    <span class="text-sm font-bold flex items-center gap-3"><i class="fas fa-globe text-blue-900"></i> اللغة (AR/EN)</span>
+                </div>
+                <div class="settings-row" onclick="window.location.href='privacy.html'">
+                    <span class="text-sm font-bold flex items-center gap-3"><i class="fas fa-shield-alt text-blue-900"></i> سياسة الخصوصية</span>
+                </div>
+                <div class="settings-row" onclick="window.location.href='terms.html'">
+                    <span class="text-sm font-bold flex items-center gap-3"><i class="fas fa-file-contract text-blue-900"></i> شروط الاستخدام</span>
+                </div>
+                <div class="settings-row" onclick="window.location.href='contact.html'">
+                    <span class="text-sm font-bold flex items-center gap-3"><i class="fas fa-headset text-blue-900"></i> تواصل مع المطورين</span>
+                </div>
+                <div class="settings-row hidden" id="installAppRow" onclick="installApp()">
+                    <span class="text-sm font-bold flex items-center gap-3"><i class="fas fa-download text-blue-900"></i> تثبيت التطبيق</span>
+                </div>
+                <div class="settings-row" style="color:#dc2626;" onclick="doLogout()">
+                    <span class="text-sm font-bold flex items-center gap-3"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-3xl mx-auto p-4 space-y-6">
+
+    <div class="bg-white rounded-[2.5rem] shadow-sm overflow-hidden border">
+        <div class="h-24 gradient-profile"></div>
+        <div class="relative -mt-16 mb-3 flex justify-center">
+            <div class="avatar-wrapper">
+                <img id="userImg" src="https://ui-avatars.com/api/?background=1e3a5f&color=fff&name=User&size=200"
+                     class="w-28 h-28 rounded-full border-4 border-white shadow-lg object-cover cursor-pointer"
+                     onclick="document.getElementById('avatarInput').click()" title="اضغط لتغيير الصورة">
+                <button class="avatar-cam-btn" onclick="document.getElementById('avatarInput').click()">
+                    <i class="fas fa-camera"></i>
+                </button>
+                <div id="avatarUploading"><div style="width:1.5rem;height:1.5rem;border:3px solid white;border-top-color:transparent;border-radius:50%;" class="animate-spin"></div></div>
+                <input type="file" id="avatarInput" accept="image/*" class="hidden">
+            </div>
+        </div>
+
+        <div class="px-6 pb-6">
+            <h2 class="text-2xl font-black text-center">
+                <span id="userNameDisplay">مستخدم جديد</span>
+                <span id="verifiedBadge" class="verified-badge hidden" title="حساب موثّق"><i class="fas fa-check-circle"></i></span>
+            </h2>
+            <p id="userEmailDisplay" class="text-gray-400 text-xs text-center mt-1"></p>
+
+            <div id="myRatingBlock" class="flex flex-col items-center gap-1 mt-3 mb-1">
+                <div id="myStarsRow" class="flex gap-0.5 text-xl">
+                    <span class="text-gray-200">★</span><span class="text-gray-200">★</span><span class="text-gray-200">★</span><span class="text-gray-200">★</span><span class="text-gray-200">★</span>
+                </div>
+                <p id="myRatingText" class="text-[10px] text-gray-400 font-bold">لا توجد تقييمات بعد</p>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 my-5">
+                <div class="text-center p-3 bg-blue-50 rounded-xl">
+                    <p id="adsCount" class="text-2xl font-black text-blue-900">0</p>
+                    <p class="text-[10px] text-gray-600 font-bold">إعلان</p>
+                </div>
+                <div class="text-center p-3 bg-amber-50 rounded-xl">
+                    <p id="followersCount" class="text-2xl font-black text-amber-600">0</p>
+                    <p class="text-[10px] text-gray-600 font-bold">متابع</p>
+                </div>
+                <div class="text-center p-3 bg-purple-50 rounded-xl">
+                    <p id="totalViewsCount" class="text-2xl font-black text-purple-600">0</p>
+                    <p class="text-[10px] text-gray-600 font-bold">مشاهدة (الإجمالي)</p>
+                </div>
+            </div>
+
+            <div class="flex gap-3" id="profileActions"></div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-3xl shadow-sm border overflow-hidden">
+        <div class="dash-tab-bar" id="dashTabBar">
+            <div class="dash-tab-btn active" data-tab="ads" onclick="switchDashTab('ads')"><i class="fas fa-building block mb-1"></i>إعلاناتي</div>
+            <div class="dash-tab-btn" data-tab="favorites" onclick="switchDashTab('favorites')"><i class="fas fa-heart block mb-1"></i>المفضلة</div>
+            <div class="dash-tab-btn" data-tab="profile" onclick="switchDashTab('profile')"><i class="fas fa-user block mb-1"></i>الملف الشخصي</div>
+            <div class="dash-tab-btn" data-tab="stats" onclick="switchDashTab('stats')"><i class="fas fa-chart-bar block mb-1"></i>الإحصائيات</div>
+        </div>
+
+        <!-- ① إعلاناتي -->
+        <div class="dash-panel active p-4" id="panel-ads">
+            <div class="flex border-b mb-4">
+                <button onclick="switchAdsSubTab('active')" id="subTabActive" class="flex-1 py-2 text-xs font-bold border-b-2 border-blue-900 text-blue-900">نشطة (<span id="activeCount">0</span>)</button>
+                <button onclick="switchAdsSubTab('sold')" id="subTabSold" class="flex-1 py-2 text-xs font-bold border-b-2 border-transparent text-gray-400">مباعة (<span id="soldCount">0</span>)</button>
+            </div>
+            <div id="userAdsGrid" class="grid grid-cols-2 gap-3"></div>
+        </div>
+
+        <!-- ② المفضلة -->
+        <div class="dash-panel p-4" id="panel-favorites">
+            <div id="favoritesGrid" class="grid grid-cols-2 gap-3"></div>
+        </div>
+
+        <!-- ③ الإعدادات / الملف الشخصي -->
+        <div class="dash-panel p-4 space-y-4" id="panel-profile">
+
+            <button onclick="openEditProfileModal()" class="w-full flex items-center justify-between p-4 bg-blue-50 border border-blue-100 rounded-2xl">
+                <span class="text-sm font-bold text-blue-900 flex items-center gap-2"><i class="fas fa-user-edit"></i> تعديل الملف الشخصي (الاسم، النبذة، الرابط، المعرّف)</span>
+                <i class="fas fa-chevron-left text-blue-900 text-xs"></i>
+            </button>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-600 mb-1">رقم الهاتف</label>
+                <input type="tel" id="editPhone" dir="ltr" class="input-field">
+            </div>
+            <button onclick="doSavePhone()" class="btn-primary w-full">حفظ رقم الهاتف</button>
+
+            <hr class="my-4">
+
+            <!-- التوثيق المشروط بعدد المتابعين -->
+            <div class="bg-gray-50 border rounded-2xl p-4">
+                <h3 class="text-sm font-bold mb-2 flex items-center gap-2"><i class="fas fa-certificate text-blue-900"></i> توثيق الحساب</h3>
+                <div id="verificationBox" class="text-center"></div>
+            </div>
+
+            <hr class="my-4">
+
+            <div>
+                <label class="block text-xs font-bold text-gray-600 mb-1">كلمة مرور جديدة</label>
+                <input type="password" id="newPassword" placeholder="اتركه فارغاً إن لم ترغب بتغييره" class="input-field">
+            </div>
+            <button onclick="doChangePassword()" class="w-full bg-gray-900 text-white font-bold py-3 rounded-xl active:scale-95 transition">تغيير كلمة المرور</button>
+        </div>
+
+        <!-- ④ الإحصائيات -->
+        <div class="dash-panel p-4" id="panel-stats">
+            <div id="statsGrid" class="space-y-3"></div>
+        </div>
+    </div>
+</main>
+
+<div id="editProfileModal" class="modal-overlay" onclick="closeModal('editProfileModal')">
+    <div class="bg-white rounded-[2rem] p-6 w-96 max-w-full shadow-2xl" onclick="event.stopPropagation()" style="background-color:var(--color-card); color:var(--color-text);">
+        <h3 class="font-black text-xl mb-4">تعديل الملف الشخصي</h3>
+
+        <label class="block text-xs font-bold mb-1" style="color:var(--color-text-muted);">الاسم</label>
+        <input type="text" id="editName" class="input-field mb-3">
+
+        <label class="block text-xs font-bold mb-1" style="color:var(--color-text-muted);">النبذة الشخصية (Bio)</label>
+        <textarea id="editBio" rows="3" placeholder="اكتب نبذة قصيرة عنك أو عن نشاطك العقاري..." class="input-field mb-3"></textarea>
+
+        <label class="block text-xs font-bold mb-1" style="color:var(--color-text-muted);">رابط التواصل الاجتماعي</label>
+        <input type="url" id="editSocialLink" dir="ltr" placeholder="https://instagram.com/username" class="input-field mb-3">
+
+        <label class="block text-xs font-bold mb-1" style="color:var(--color-text-muted);">المعرّف الفريد (@)</label>
+        <div style="position:relative; margin-bottom:0.25rem;">
+            <span style="position:absolute; top:50%; transform:translateY(-50%); left:14px; color:var(--color-text-muted); font-weight:800;">@</span>
+            <input type="text" id="editHandle" dir="ltr" placeholder="username" class="input-field" style="padding-left:28px;" oninput="onHandleInput()">
+        </div>
+        <p id="handleStatus" class="text-[11px] mb-4" style="color:var(--color-text-muted);">حروف إنجليزية وأرقام و "_" فقط، بدون مسافات</p>
+
+        <div class="flex gap-2">
+            <button onclick="doSaveProfile()" class="flex-1 btn-primary">حفظ التعديلات</button>
+            <button onclick="closeModal('editProfileModal')" class="flex-1 bg-gray-100 text-gray-600 font-bold py-3 rounded-xl">إلغاء</button>
+        </div>
+    </div>
+</div>
+
+<div id="editAdModal" class="modal-overlay" onclick="closeModal('editAdModal')">
+    <div class="bg-white rounded-[2rem] p-6 w-96 max-w-full shadow-2xl" onclick="event.stopPropagation()">
+        <h3 class="font-black text-xl mb-4">تعديل الإعلان</h3>
+        <label class="block text-xs font-bold text-gray-600 mb-1">السعر ($)</label>
+        <input type="number" id="editAdPrice" class="input-field mb-3">
+        <label class="block text-xs font-bold text-gray-600 mb-1">الوصف</label>
+        <textarea id="editAdDesc" rows="3" class="input-field mb-4"></textarea>
+        <div class="flex gap-2">
+            <button onclick="doSaveAd()" class="flex-1 btn-primary">حفظ</button>
+            <button onclick="closeModal('editAdModal')" class="flex-1 bg-gray-100 text-gray-600 font-bold py-3 rounded-xl">إلغاء</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    function toggleMenu(e, id) { e.stopPropagation(); document.getElementById(id).classList.toggle('show-menu'); }
+    function closeAllMenus() { document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show-menu')); }
+
+    function switchDashTab(tab) {
+        document.querySelectorAll('.dash-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+        document.querySelectorAll('.dash-panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tab}`));
+        if (tab === 'favorites' && typeof window.loadFavorites === 'function') window.loadFavorites();
+        if (tab === 'stats' && typeof window.loadStats === 'function') window.loadStats();
+    }
+
+    let currentAdsSubTab = 'active';
+    function switchAdsSubTab(tab) {
+        currentAdsSubTab = tab;
+        document.getElementById('subTabActive').classList.toggle('text-blue-900', tab === 'active');
+        document.getElementById('subTabActive').classList.toggle('border-blue-900', tab === 'active');
+        document.getElementById('subTabActive').classList.toggle('text-gray-400', tab !== 'active');
+        document.getElementById('subTabSold').classList.toggle('text-blue-900', tab === 'sold');
+        document.getElementById('subTabSold').classList.toggle('border-blue-900', tab === 'sold');
+        document.getElementById('subTabSold').classList.toggle('text-gray-400', tab !== 'sold');
+        if (typeof window.renderMyAds === 'function') window.renderMyAds();
+    }
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
+    });
+</script>
+
+<!-- ═══ الملف المركزي ═══ -->
+<script type="module" src="app.js"></script>
+
+<!-- ═══ منطق لوحة التحكم ═══ -->
+<script type="module">
+    const { Auth, Storage, DB, UI, PROPERTY_TYPE_LABELS } = window.SEApp;
+
+    let currentUser     = null;
+    let currentUserData = null;
+    let authReady       = false;
+    let myAds           = [];
+    let editingAdId     = null;
+
+    function hideSpinner() {
+        const s = document.getElementById('loadingSpinner');
+        if (!s) return;
+        s.style.opacity = '0'; s.style.transition = 'opacity 0.5s';
+        setTimeout(() => s.style.display = 'none', 500);
+    }
+
+    function updateUI(data, user) {
+        if (data.name) document.getElementById('userNameDisplay').innerText = data.name;
+        if (user.email) document.getElementById('userEmailDisplay').innerText = user.email;
+        document.getElementById('followersCount').innerText = data.followers_count ?? 0;
+
+        const badge = document.getElementById('verifiedBadge');
+        badge.classList.toggle('hidden', !data.is_verified);
+
+        const img = document.getElementById('userImg');
+        img.src = data.avatar_url || `https://ui-avatars.com/api/?background=1e3a5f&color=fff&name=${encodeURIComponent(data.name || 'U')}&size=200`;
+        img.onerror = () => { img.src = `https://ui-avatars.com/api/?background=1e3a5f&color=fff&name=${encodeURIComponent(data.name || 'U')}&size=200`; };
+
+        document.getElementById('editName').value  = data.name || '';
+        document.getElementById('editPhone').value = data.phone || '';
+        document.getElementById('editHandle').value = data.handle || '';
+        document.getElementById('editBio').value = data.bio || '';
+        document.getElementById('editSocialLink').value = data.social_link || '';
+        window._currentUserData = data;
+    }
+
+    window.openEditProfileModal = function() {
+        openModal('editProfileModal');
+    };
+
+    window.installApp = async function() {
+        const choice = await window.SEApp.PWA.promptInstall();
+        if (choice.outcome === 'accepted') UI.showToast('✅ جاري تثبيت التطبيق...');
+        closeAllMenus();
+    };
+
+    window.addEventListener('se:installavailable', () => {
+        document.getElementById('installAppRow')?.classList.remove('hidden');
+    });
+
+    // ── مشاركة الملف الشخصي ──
+    window.shareMyProfile = async function() {
+        if (!currentUser) return;
+        const url = `${window.location.origin}${window.location.pathname.replace('profile.html','')}profile.html?id=${currentUser.id}`;
+        try {
+            if (navigator.share) await navigator.share({ title: 'ملفي الشخصي - العقارات السورية', url });
+            else { await navigator.clipboard.writeText(url); UI.showToast('✅ تم نسخ رابط ملفك الشخصي!'); }
+        } catch (e) { /* silent */ }
+        closeAllMenus();
+    };
+
+    // ── تبديل السمة (ليلي/نهاري) من قائمة الإعدادات ──
+    window.toggleThemeBtn = function() {
+        window.SEApp.Theme.toggle();
+        closeAllMenus();
+    };
+
+    // ── تبديل اللغة من قائمة الإعدادات ──
+    window.toggleLangBtn = function() {
+        window.SEApp.I18n.toggle();
+        closeAllMenus();
+    };
+
+    // ── توثيق الحساب (مشروط بـ 100 متابع على الأقل) ──
+    async function loadVerificationStatus() {
+        const box = document.getElementById('verificationBox');
+        const followers = currentUserData?.followers_count || 0;
+        const minFollowers = window.SEApp.VERIFICATION_MIN_FOLLOWERS;
+
+        if (currentUserData?.is_verified) {
+            box.innerHTML = `<span class="text-blue-600 text-xs font-bold"><i class="fas fa-check-circle"></i> حساب موثّق</span>`;
+            return;
+        }
+
+        const eligible = DB.isEligibleForVerification ? DB.isEligibleForVerification(followers) : followers >= minFollowers;
+
+        if (!eligible) {
+            box.innerHTML = `
+                <p class="text-xs font-bold mb-1" style="color:var(--color-text-muted);">
+                    يتطلب طلب التوثيق ${minFollowers} متابع على الأقل
+                </p>
+                <div class="w-full bg-gray-200 rounded-full h-2 mb-1">
+                    <div class="bg-blue-900 h-2 rounded-full" style="width:${Math.min(100, (followers / minFollowers) * 100)}%"></div>
+                </div>
+                <p class="text-[11px] font-bold text-gray-400">${followers} / ${minFollowers} متابع</p>`;
+            return;
+        }
+
+        const req = await DB.fetchVerificationStatus(currentUser.id);
+        if (req && req.status === 'pending') {
+            box.innerHTML = `<span class="text-amber-600 text-xs font-bold"><i class="fas fa-clock"></i> طلب التوثيق قيد المراجعة</span>`;
+        } else if (req && req.status === 'rejected') {
+            box.innerHTML = `<button onclick="requestVerify()" class="text-red-500 text-xs font-bold underline">تم رفض الطلب السابق — إعادة الطلب</button>`;
+        } else {
+            box.innerHTML = `<button onclick="requestVerify()" class="text-blue-900 text-xs font-bold underline"><i class="fas fa-certificate"></i> طلب توثيق الحساب (✔️)</button>`;
+        }
+    }
+
+    window.requestVerify = async function() {
+        if (!currentUser) return;
+        const followers = currentUserData?.followers_count || 0;
+        if (!DB.isEligibleForVerification(followers)) {
+            UI.showToast(`⚠️ تحتاج ${window.SEApp.VERIFICATION_MIN_FOLLOWERS} متابع على الأقل لطلب التوثيق`);
+            return;
+        }
+        if (!confirm('سيتم إرسال طلب توثيق لحسابك ليُراجَع يدوياً من فريق المنصة. هل تريد المتابعة؟')) return;
+        try {
+            await DB.requestVerification(currentUser.id);
+            UI.showToast('✅ تم إرسال طلب التوثيق!');
+            loadVerificationStatus();
+        } catch (e) {
+            if (e.code === '23505') UI.showToast('⚠️ لديك طلب قيد المراجعة بالفعل');
+            else alert('خطأ: ' + e.message);
+        }
+    };
+
+    async function updateMyRatingDisplay(userId) {
+        if (!userId) return;
+        const ratings = await DB.fetchSellerRatings(userId);
+        const starsRow = document.getElementById('myStarsRow');
+        const ratingTxt = document.getElementById('myRatingText');
+        if (!ratings.length) return;
+        const avg = (ratings.reduce((s, r) => s + r.stars, 0) / ratings.length).toFixed(1);
+        const full = Math.round(avg);
+        starsRow.innerHTML = '★★★★★'.split('').map((_, i) => `<span style="color:${i < full ? '#f59e0b' : '#e5e7eb'}">★</span>`).join('');
+        ratingTxt.textContent = `${avg} (${ratings.length} تقييم)`;
+    }
+
+    async function fetchMyAds() {
+        myAds = await DB.fetchPropertiesByOwner(currentUser.id);
+        renderMyAds();
+    }
+
+    function renderMyAds() {
+        const grid = document.getElementById('userAdsGrid');
+        const active = myAds.filter(a => a.status !== 'sold' && a.status !== 'rented');
+        const sold   = myAds.filter(a => a.status === 'sold' || a.status === 'rented');
+
+        document.getElementById('adsCount').textContent = myAds.length;
+        document.getElementById('activeCount').textContent = active.length;
+        document.getElementById('soldCount').textContent = sold.length;
+        document.getElementById('totalViewsCount').textContent = myAds.reduce((s, a) => s + (a.views || 0), 0);
+
+        const filtered = currentAdsSubTab === 'sold' ? sold : active;
+        if (filtered.length === 0) { grid.innerHTML = `<div class="col-span-2 text-center text-gray-400 text-xs py-10">لا توجد إعلانات في هذا القسم</div>`; return; }
+
+        grid.innerHTML = filtered.map(ad => {
+            const typeLabel = PROPERTY_TYPE_LABELS[ad.property_type] || ad.property_type;
+            return `
+            <div class="relative bg-gray-50 rounded-2xl overflow-hidden shadow-sm border">
+                ${ad.status !== 'active' ? `
+                <div class="absolute inset-0 bg-black/40 flex items-center justify-center z-10">
+                    <span class="bg-white text-red-600 px-3 py-1 rounded font-black text-xs -rotate-12 border-2 border-red-600">${ad.status === 'sold' ? 'تم البيع' : 'تم التأجير'}</span>
+                </div>` : ''}
+                <img src="${ad.images?.[0] || 'https://via.placeholder.com/200x150?text=Syria+Estate'}" class="w-full h-32 object-cover">
+                <div class="p-3">
+                    <h4 class="font-bold text-sm truncate">${typeLabel} — ${ad.city}</h4>
+                    <p class="text-amber-600 font-black text-base">$${Number(ad.price).toLocaleString()}</p>
+                    <p class="text-gray-400 text-[10px] mt-0.5"><i class="fas fa-eye"></i> ${ad.views || 0} مشاهدة</p>
+                    <div class="flex gap-2 mt-2">
+                        <button onclick="openEditAdModal('${ad.id}')" class="flex-1 bg-blue-900 text-white py-1.5 px-2 rounded-lg text-xs font-bold"><i class="fas fa-edit"></i> تعديل</button>
+                        <button onclick="doDeleteAd('${ad.id}')" class="bg-red-500 text-white py-1.5 px-2 rounded-lg text-xs" title="حذف"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+    window.renderMyAds = renderMyAds;
+
+    window.openEditAdModal = function(adId) {
+        editingAdId = adId;
+        const ad = myAds.find(a => a.id === adId);
+        if (!ad) return;
+        document.getElementById('editAdPrice').value = ad.price || '';
+        document.getElementById('editAdDesc').value  = ad.description || '';
+        openModal('editAdModal');
+    };
+
+    window.doSaveAd = async function() {
+        if (!editingAdId) return;
+        const price = document.getElementById('editAdPrice').value;
+        const desc  = document.getElementById('editAdDesc').value;
+        if (!price) { alert('أدخل السعر'); return; }
+        try {
+            await DB.updateProperty(editingAdId, { price: parseFloat(price), description: desc });
+            const i = myAds.findIndex(a => a.id === editingAdId);
+            if (i !== -1) { myAds[i].price = parseFloat(price); myAds[i].description = desc; }
+            UI.showToast('✅ تم التحديث!');
+            renderMyAds();
+            closeModal('editAdModal');
+        } catch(e) { alert('خطأ: ' + e.message); }
+    };
+
+    window.doDeleteAd = async function(adId) {
+        if (!confirm('حذف الإعلان نهائياً؟')) return;
+        try {
+            await DB.deleteProperty(adId);
+            myAds = myAds.filter(a => a.id !== adId);
+            UI.showToast('✅ تم الحذف');
+            renderMyAds();
+        } catch(e) { alert('خطأ: ' + e.message); }
+    };
+
+    window.loadFavorites = async function() {
+        const grid = document.getElementById('favoritesGrid');
+        grid.innerHTML = `<div class="col-span-2 text-center text-gray-400 text-xs py-10"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</div>`;
+
+        const favs = await DB.fetchFavoritesWithProperties(currentUser.id);
+        if (!favs.length) { grid.innerHTML = `<div class="col-span-2 text-center text-gray-400 text-xs py-10">لا يوجد عقارات في مفضلتك بعد</div>`; return; }
+
+        grid.innerHTML = favs.map(f => {
+            const ad = f.properties;
+            const typeLabel = PROPERTY_TYPE_LABELS[ad.property_type] || ad.property_type;
+            return `
+            <div class="relative bg-gray-50 rounded-2xl overflow-hidden shadow-sm border cursor-pointer" onclick="window.location.href='details.html?id=${ad.id}'">
+                <img src="${ad.images?.[0] || 'https://via.placeholder.com/200x150?text=Syria+Estate'}" class="w-full h-32 object-cover">
+                <div class="p-3">
+                    <h4 class="font-bold text-sm truncate">${typeLabel} — ${ad.city}</h4>
+                    <p class="text-amber-600 font-black text-base">$${Number(ad.price).toLocaleString()}</p>
+                </div>
+            </div>`;
+        }).join('');
+    };
+
+    window.loadStats = function() {
+        const grid = document.getElementById('statsGrid');
+        if (!myAds.length) { grid.innerHTML = `<div class="text-center text-gray-400 text-xs py-10">لا توجد إعلانات لعرض إحصائياتها</div>`; return; }
+        const maxViews = Math.max(...myAds.map(a => a.views || 0), 1);
+        grid.innerHTML = [...myAds].sort((a, b) => (b.views || 0) - (a.views || 0)).map(ad => {
+            const typeLabel = PROPERTY_TYPE_LABELS[ad.property_type] || ad.property_type;
+            const pct = Math.round(((ad.views || 0) / maxViews) * 100);
+            return `
+            <div class="bg-gray-50 rounded-xl p-3 border">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-xs font-bold">${typeLabel} — ${ad.city}</span>
+                    <span class="text-xs font-black text-blue-900"><i class="fas fa-eye"></i> ${ad.views || 0}</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2"><div class="bg-amber-500 h-2 rounded-full" style="width:${pct}%"></div></div>
+                <p class="text-[9px] text-gray-400 font-bold mt-1"><i class="fas fa-heart"></i> ${ad.favorites_count || 0} إضافة للمفضلة</p>
+            </div>`;
+        }).join('');
+    };
+
+    function onHandleInput() {
+        const input  = document.getElementById('editHandle');
+        const status = document.getElementById('handleStatus');
+        input.value = input.value.replace(/[^a-zA-Z0-9_]/g, '');
+        if (!input.value) { status.textContent = 'حروف إنجليزية وأرقام و "_" فقط، بدون مسافات'; status.style.color = 'var(--color-text-muted)'; return; }
+        if (input.value.length < 3) { status.textContent = 'المعرّف قصير جداً (3 أحرف على الأقل)'; status.style.color = '#f59e0b'; return; }
+        status.textContent = 'جاري التحقق من التوفر...'; status.style.color = 'var(--color-text-muted)';
+        clearTimeout(window._handleCheckTimer);
+        window._handleCheckTimer = setTimeout(async () => {
+            const available = await DB.isHandleAvailable(input.value, currentUser?.id);
+            status.textContent = available ? '✅ هذا المعرّف متاح' : '❌ هذا المعرّف مستخدم بالفعل';
+            status.style.color = available ? '#16a34a' : '#ef4444';
+        }, 500);
+    }
+    window.onHandleInput = onHandleInput;
+
+    let _savingProfile = false;
+    window.doSaveProfile = async function() {
+        if (!currentUser || !authReady) { alert('⚠️ انتظر قليلاً...'); return; }
+        if (_savingProfile) return; // يمنع الإرسال المتكرر عند الضغط السريع المتكرر على الزر
+        _savingProfile = true;
+
+        try {
+            const name       = document.getElementById('editName').value.trim();
+            const bio        = document.getElementById('editBio').value.trim();
+            const socialLink = document.getElementById('editSocialLink').value.trim();
+            const handle     = document.getElementById('editHandle').value.trim();
+
+            if (handle) {
+                if (handle.length < 3) { alert('⚠️ المعرّف يجب أن يكون 3 أحرف على الأقل'); return; }
+                const available = await DB.isHandleAvailable(handle, currentUser.id);
+                if (!available) { alert('❌ هذا المعرّف مستخدم بالفعل، اختر معرّفاً آخر'); return; }
+            }
+            if (socialLink && !/^https?:\/\/.+/.test(socialLink)) {
+                alert('⚠️ رابط التواصل الاجتماعي يجب أن يبدأ بـ http:// أو https://');
+                return;
+            }
+
+            const updates = { name, bio, social_link: socialLink, handle: handle || null };
+
+            await DB.updateProfile(currentUser.id, updates);
+            if (name) document.getElementById('userNameDisplay').innerText = name;
+            currentUserData = { ...currentUserData, ...updates };
+            UI.showToast('✅ تم حفظ الملف الشخصي!');
+            closeModal('editProfileModal');
+        } catch(e) {
+            if (e.code === '23505') alert('❌ هذا المعرّف مستخدم بالفعل');
+            else alert('خطأ: ' + e.message);
+        } finally {
+            _savingProfile = false;
+        }
+    };
+
+    window.doSavePhone = async function() {
+        if (!currentUser || !authReady) { alert('⚠️ انتظر قليلاً...'); return; }
+        const phone = document.getElementById('editPhone').value.trim();
+        if (!phone) { alert('أدخل رقم الهاتف'); return; }
+        try {
+            await DB.updateProfile(currentUser.id, { phone });
+            currentUserData = { ...currentUserData, phone };
+            UI.showToast('✅ تم حفظ رقم الهاتف!');
+        } catch(e) { alert('خطأ: ' + e.message); }
+    };
+
+    window.doChangePassword = async function() {
+        const pass = document.getElementById('newPassword').value;
+        if (!pass || pass.length < 6) { alert('⚠️ كلمة المرور يجب أن تكون 6 أحرف على الأقل'); return; }
+        try {
+            const { error } = await Auth.changePassword(pass);
+            if (error) throw error;
+            document.getElementById('newPassword').value = '';
+            UI.showToast('✅ تم تغيير كلمة المرور!');
+        } catch(e) { alert('خطأ: ' + e.message); }
+    };
+
+    document.getElementById('avatarInput').addEventListener('change', async function() {
+        const file = this.files[0];
+        if (!file || !currentUser) return;
+        if (file.size > 3 * 1024 * 1024) { alert('❌ الصورة أكبر من 3MB'); return; }
+
+        const loadEl = document.getElementById('avatarUploading');
+        loadEl.style.display = 'flex';
+        try {
+            const avatarUrl = await Storage.uploadAvatar(file, currentUser.id);
+            await DB.updateProfile(currentUser.id, { avatar_url: avatarUrl });
+            document.getElementById('userImg').src = avatarUrl;
+            currentUserData.avatar_url = avatarUrl;
+            UI.showToast('✅ تم تحديث الصورة الشخصية!');
+        } catch(e) { alert('❌ خطأ في رفع الصورة: ' + e.message); }
+        finally { loadEl.style.display = 'none'; this.value = ''; }
+    });
+
+    window.doLogout = async function() {
+        if (!confirm('تسجيل الخروج؟')) return;
+        await Auth.logout();
+    };
+
+    async function renderProfileActions(isOwnProfile, sellerData) {
+        const box = document.getElementById('profileActions');
+        if (isOwnProfile) { box.innerHTML = ''; return; }
+
+        const isFollowing = await DB.isFollowing(currentUser.id, sellerData.id);
+
+        box.innerHTML = `
+            <a href="https://wa.me/${(sellerData.phone||'').replace(/[^\d+]/g,'')}" target="_blank" class="flex-1 bg-blue-900 text-white text-center font-bold py-3 rounded-xl">
+                <i class="fab fa-whatsapp"></i> تواصل
+            </a>
+            <button id="followBtn" onclick="toggleFollow('${sellerData.id}')"
+                class="flex-1 font-bold py-3 rounded-xl border-2 transition-all ${isFollowing ? 'border-gray-300 text-gray-500' : 'border-blue-900 text-blue-900'}">
+                <i class="fas ${isFollowing ? 'fa-user-check' : 'fa-user-plus'}"></i>
+                <span>${isFollowing ? 'متابَع' : 'متابعة'}</span>
+            </button>`;
+    }
+
+    window.toggleFollow = async function(followedId) {
+        if (!currentUser) return;
+        const btn = document.getElementById('followBtn');
+        const isCurrentlyFollowing = btn.querySelector('i').classList.contains('fa-user-check');
+        btn.disabled = true;
+
+        try {
+            if (isCurrentlyFollowing) {
+                const { error } = await DB.unfollowUser(currentUser.id, followedId);
+                if (error) throw error;
+                btn.className = 'flex-1 font-bold py-3 rounded-xl border-2 transition-all border-blue-900 text-blue-900';
+                btn.innerHTML = '<i class="fas fa-user-plus"></i> <span>متابعة</span>';
+                UI.showToast('تم إلغاء المتابعة');
+            } else {
+                const { error } = await DB.followUser(currentUser.id, followedId);
+                if (error) throw error;
+                btn.className = 'flex-1 font-bold py-3 rounded-xl border-2 transition-all border-gray-300 text-gray-500';
+                btn.innerHTML = '<i class="fas fa-user-check"></i> <span>متابَع</span>';
+                UI.showToast('✅ تمت المتابعة!');
+
+                DB.sendNotification({
+                    userId: followedId, actorId: currentUser.id,
+                    actorName: currentUserData?.name || 'مستخدم', type: 'follow',
+                    message: `بدأ ${currentUserData?.name || 'مستخدم'} بمتابعتك`
+                });
+            }
+        } catch (e) {
+            console.error(e);
+            UI.showToast('⚠️ تعذّرت العملية، حاول مجدداً');
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    async function init() {
+        const user = await Auth.requireAuth();
+        if (!user) return;
+        currentUser = user;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const sellerId  = urlParams.get('id');
+
+        try {
+            if (sellerId && sellerId !== currentUser.id) {
+                document.querySelector('.avatar-cam-btn').style.display = 'none';
+                document.getElementById('avatarInput').disabled = true;
+                document.getElementById('dashTabBar').style.display = 'none';
+                document.querySelectorAll('.dash-panel').forEach(p => p.classList.remove('active'));
+                document.getElementById('panel-ads').classList.add('active');
+
+                const sellerData = await DB.fetchProfile(sellerId);
+                if (!sellerData) { hideSpinner(); alert('البائع غير موجود'); window.location.href = 'index.html'; return; }
+
+                updateUI(sellerData, { id: sellerId, email: '' });
+                await renderProfileActions(false, sellerData);
+                updateMyRatingDisplay(sellerId);
+                document.getElementById('verificationBox').innerHTML = '';
+
+                myAds = await DB.fetchPropertiesByOwner(sellerId);
+                renderMyAds();
+                authReady = true;
+                setTimeout(hideSpinner, 600);
+            } else {
+                currentUserData = await DB.ensureProfile(currentUser);
+                updateUI(currentUserData, currentUser);
+                await renderProfileActions(true, null);
+                updateMyRatingDisplay(currentUser.id);
+                loadVerificationStatus();
+                await fetchMyAds();
+                authReady = true;
+                setTimeout(hideSpinner, 600);
+            }
+        } catch(err) {
+            console.error(err);
+            hideSpinner();
+            alert('خطأ في تحميل البيانات: ' + err.message);
+        }
+    }
+
+    Auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT' || !session) { authReady = false; currentUser = null; }
+    });
+
+    init();
+    console.log('🎉 profile.html ready (Modular via app.js)');
+</script>
+
+</body>
+</html>

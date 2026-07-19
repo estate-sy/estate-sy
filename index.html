@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" id="htmlTag">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>العقارات السورية | Syria Estate</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="img/favicon.png">
+    <link rel="apple-touch-icon" href="img/favicon.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="العقارات السورية">
+    <meta name="theme-color" content="#1e3a5f">
+    <style>
+        #mapToggleBtn.active { background: var(--color-primary); color: white; }
+    </style>
+</head>
+<body>
+
+    <div id="se-toast"></div>
+
+    <header class="gradient-header text-white p-4 sticky top-0 z-50 shadow-xl">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <a class="brand-block" href="index.html">
+                <img class="brand-img" src="img/logo.png" alt="العقارات السورية">
+                <div class="brand-texts">
+                    <span class="brand-text-en">Syria Estate</span>
+                    <span class="brand-text-ar">العقارات السورية</span>
+                </div>
+            </a>
+            <div class="flex items-center gap-3">
+                <button onclick="window.SEApp.I18n.toggle()" id="langToggleBtn" class="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center border border-white/20 hover:bg-white/20 transition" title="Language / اللغة">
+                    <i class="fas fa-globe"></i>
+                </button>
+                <button onclick="window.SEApp.Theme.toggle(); updateThemeIcon();" id="themeToggleBtn" class="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center border border-white/20 hover:bg-white/20 transition" title="Dark/Light">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <button onclick="window.location.href='profile.html'" id="profileNavBtn" class="w-10 h-10 rounded-2xl overflow-hidden border-2 border-white/20 active:scale-90 transition-all flex items-center justify-center bg-white/10">
+                    <img id="profileNavAvatar" src="" alt="Profile" class="w-full h-full object-cover hidden" onerror="this.classList.add('hidden'); document.getElementById('profileNavIcon').classList.remove('hidden')">
+                    <i id="profileNavIcon" class="fas fa-user-circle text-xl text-amber-400"></i>
+                </button>
+                <button onclick="window.location.href='add-property.html'" class="btn-accent px-4 py-2.5 text-[11px]" data-i18n="addProperty">+ أضف عقار</button>
+            </div>
+        </div>
+    </header>
+
+    <section class="p-4 max-w-6xl mx-auto space-y-4">
+
+        <div class="deal-tab-bar" role="tablist">
+            <button class="deal-tab-btn active" data-tab="sale" onclick="selectDealTab(this)"><i class="fas fa-key ml-1"></i> <span data-i18n="forSale">للبيع</span></button>
+            <button class="deal-tab-btn" data-tab="rent" onclick="selectDealTab(this)"><i class="fas fa-house-user ml-1"></i> <span data-i18n="forRent">للإيجار</span></button>
+            <button class="deal-tab-btn" data-tab="land" onclick="selectDealTab(this)"><i class="fas fa-map ml-1"></i> <span data-i18n="land">أراضي</span></button>
+        </div>
+
+        <div class="relative">
+            <input type="text" id="mainSearch" placeholder="ابحث عن حي، مدينة، أو نوع عقار..." data-i18n-placeholder="search" class="input-field pr-12 shadow-sm">
+            <i class="fas fa-search absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+        </div>
+
+        <div class="filters-row">
+            <select id="propertyTypeFilter" class="filter-select">
+                <option value="" data-i18n="allTypes">نوع العقار</option>
+                <option value="apartment">شقة</option>
+                <option value="villa">فيلا</option>
+                <option value="shop">محل تجاري</option>
+                <option value="office">مكتب</option>
+            </select>
+            <select id="cityFilter" class="filter-select">
+                <option value="" data-i18n="allCities">كل المحافظات</option>
+            </select>
+            <div class="price-filter-group">
+                <span class="price-label">المساحة</span>
+                <input type="number" id="areaFrom" class="price-input-inner" placeholder="من">
+                <span class="text-gray-300">-</span>
+                <input type="number" id="areaTo" class="price-input-inner" placeholder="إلى">
+            </div>
+            <div class="price-filter-group">
+                <span class="price-label">$</span>
+                <input type="number" id="priceFrom" class="price-input-inner" placeholder="من">
+                <span class="text-gray-300">-</span>
+                <input type="number" id="priceTo" class="price-input-inner" placeholder="إلى">
+            </div>
+            <button id="mapToggleBtn" onclick="toggleMapView()" class="filter-select flex items-center gap-1">
+                <i class="fas fa-map-marked-alt"></i> <span data-i18n="showMap">عرض الخريطة</span>
+            </button>
+        </div>
+
+        <div id="searchMapWrapper" class="hidden">
+            <div id="searchMap" style="height:260px;"></div>
+        </div>
+
+        <div id="adsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+
+    </section>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+    <!-- ═══ الملف المركزي ═══ -->
+    <script type="module" src="app.js"></script>
+
+    <!-- ═══ منطق الصفحة الرئيسية ═══ -->
+    <script type="module">
+        const { Auth, DB, UI, I18n, PROPERTY_TYPE_LABELS, CITIES_LIST } = window.SEApp;
+
+        window.selectedDealTab = 'sale';
+
+        function selectDealTab(el) {
+            document.querySelectorAll('.deal-tab-btn').forEach(b => b.classList.remove('active'));
+            el.classList.add('active');
+            window.selectedDealTab = el.dataset.tab;
+            currentPage = 1;
+            applyFilters();
+        }
+        window.selectDealTab = selectDealTab;
+
+        const PAGE_SIZE = 12;
+        let currentPage = 1;
+        let allAdsCache = [];
+        let isLoadingMore = false;
+
+        const imgObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (!entry.isIntersecting) return;
+                const img = entry.target;
+                const src = img.getAttribute('data-src');
+                if (src) { img.src = src; img.removeAttribute('data-src'); }
+                imgObserver.unobserve(img);
+            });
+        }, { rootMargin: '200px 0px' });
+
+        function observeLazyImages(container) {
+            container.querySelectorAll('img.lazy-img[data-src]').forEach(img => imgObserver.observe(img));
+        }
+
+        const scrollSentinel = document.createElement('div');
+        scrollSentinel.id = 'scrollSentinel';
+        scrollSentinel.style.cssText = 'height:1px; width:100%; grid-column: 1/-1;';
+
+        const sentinelObserver = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && !isLoadingMore) loadNextPage();
+        }, { rootMargin: '300px' });
+
+        function getFilteredList() {
+            const query = document.getElementById('mainSearch').value.toLowerCase();
+            const pType = document.getElementById('propertyTypeFilter').value;
+            const city  = document.getElementById('cityFilter').value;
+            const aFrom = parseFloat(document.getElementById('areaFrom').value) || 0;
+            const aTo   = parseFloat(document.getElementById('areaTo').value) || Infinity;
+            const pFrom = parseFloat(document.getElementById('priceFrom').value) || 0;
+            const pTo   = parseFloat(document.getElementById('priceTo').value) || Infinity;
+            const tab   = window.selectedDealTab;
+
+            return allAdsCache.filter(ad => {
+                if (ad.status !== 'active') return false;
+                if (tab === 'land') {
+                    if (ad.property_type !== 'land') return false;
+                } else {
+                    if (ad.deal_type !== tab) return false;
+                    if (ad.property_type === 'land') return false;
+                }
+                if (pType && ad.property_type !== pType) return false;
+                if (city && ad.city !== city) return false;
+                if (ad.area_m2 && (ad.area_m2 < aFrom || ad.area_m2 > aTo)) return false;
+                if (ad.price < pFrom || ad.price > pTo) return false;
+                if (query) {
+                    const hay = `${ad.city} ${ad.area_name || ''} ${PROPERTY_TYPE_LABELS[ad.property_type] || ''}`.toLowerCase();
+                    if (!hay.includes(query)) return false;
+                }
+                return true;
+            });
+        }
+
+        function applyFilters() {
+            currentPage = 1;
+            const container = document.getElementById('adsContainer');
+            container.innerHTML = '';
+            const filtered = getFilteredList();
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="col-span-full text-center py-20 text-gray-400 font-bold">لا توجد نتائج مطابقة لبحثك</div>`;
+                updateSearchMap([]);
+                return;
+            }
+
+            renderPage(filtered, container);
+            if (filtered.length > PAGE_SIZE) { container.appendChild(scrollSentinel); sentinelObserver.observe(scrollSentinel); }
+            updateSearchMap(filtered);
+        }
+        window.applyFilters = applyFilters;
+
+        function renderPage(ads, container) {
+            const start = (currentPage - 1) * PAGE_SIZE;
+            ads.slice(start, start + PAGE_SIZE).forEach(ad => renderCard(ad, container));
+            observeLazyImages(container);
+        }
+
+        function loadNextPage() {
+            const container = document.getElementById('adsContainer');
+            const filtered = getFilteredList();
+            if (currentPage * PAGE_SIZE >= filtered.length) { scrollSentinel.remove(); return; }
+            isLoadingMore = true;
+            currentPage++;
+            renderPage(filtered, container);
+            isLoadingMore = false;
+        }
+
+        function renderCard(ad, container) {
+            const imgs = ad.images?.length ? ad.images : ["https://via.placeholder.com/400x300?text=Syria+Estate"];
+            const typeLabel = I18n.typeLabel(ad.property_type);
+            const dealLabel = I18n.dealLabel(ad.deal_type);
+            const postedTime = UI.timeAgo(ad.created_at);
+
+            const card = document.createElement('div');
+            card.className = 'ad-card';
+            card.innerHTML = `
+                <div class="absolute top-4 left-4 z-30 flex flex-col gap-2">
+                    <button onclick="toggleFav(this)" class="w-9 h-9 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-sm text-gray-400 hover:text-red-500 transition-colors">
+                        <i class="far fa-heart text-sm"></i>
+                    </button>
+                    <button onclick="shareAd('${typeLabel} - ${ad.city}', '${ad.id}')" class="w-9 h-9 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-sm text-blue-900">
+                        <i class="fas fa-share-alt text-xs"></i>
+                    </button>
+                </div>
+                <span class="absolute top-4 right-4 z-30 bg-amber-500 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow">${dealLabel}</span>
+
+                <div class="relative h-56 group">
+                    <div class="slider-container h-full" id="slider-${ad.id}">
+                        ${imgs.map(imgSrc => `
+                        <div class="slider-item relative">
+                            <div class="img-skeleton"></div>
+                            <img data-src="${imgSrc}" src="" alt="${typeLabel}" loading="lazy" decoding="async" class="lazy-img w-full h-full object-cover"
+                                onerror="this.src='https://via.placeholder.com/400x300?text=No+Image'; this.classList.add('loaded'); this.previousElementSibling?.remove();"
+                                onload="this.classList.add('loaded'); this.previousElementSibling?.remove();">
+                        </div>`).join('')}
+                    </div>
+                    <div class="absolute bottom-3 right-3 z-10">
+                        <span class="bg-black/50 backdrop-blur text-white text-[9px] font-bold px-2 py-1 rounded-lg"><i class="fas fa-clock ml-1"></i>${postedTime}</span>
+                    </div>
+                </div>
+
+                <div class="p-5">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-lg font-black text-gray-800 tracking-tight">${typeLabel} — ${UI.escapeHtml(ad.area_name || ad.city)}</h3>
+                        <span class="text-[10px] font-bold text-blue-900 bg-blue-50 px-2 py-1 rounded-xl border border-blue-100 flex items-center gap-1">
+                            <i class="fas fa-map-marker-alt"></i>${ad.city}
+                        </span>
+                    </div>
+                    <div class="flex items-center mb-4">
+                        <span class="text-2xl font-black text-amber-600 tracking-tighter">$${Number(ad.price).toLocaleString()}</span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 mb-4">
+                        <div class="bg-gray-50 p-2 rounded-xl text-center border border-gray-100">
+                            <p class="text-[9px] text-gray-400 font-bold mb-0.5">المساحة</p>
+                            <p class="text-xs font-black text-gray-700">${ad.area_m2 || '-'} م²</p>
+                        </div>
+                        <div class="bg-gray-50 p-2 rounded-xl text-center border border-gray-100">
+                            <p class="text-[9px] text-gray-400 font-bold mb-0.5">الغرف</p>
+                            <p class="text-xs font-black text-gray-700">${ad.rooms || '-'}</p>
+                        </div>
+                        <div class="bg-gray-50 p-2 rounded-xl text-center border border-gray-100">
+                            <p class="text-[9px] text-gray-400 font-bold mb-0.5">الطابق</p>
+                            <p class="text-xs font-black text-gray-700">${ad.floor_number || '-'}</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="goToDetails('${ad.id}')" class="flex-[3] bg-blue-900 text-white font-black py-3.5 rounded-2xl text-xs active:scale-95 transition-all">عرض التفاصيل</button>
+                        <a href="https://wa.me/${(ad.phone||'').replace(/[^\d+]/g, '')}" target="_blank" class="flex-1 bg-amber-500 text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-90 transition-all">
+                            <i class="fab fa-whatsapp text-2xl"></i>
+                        </a>
+                    </div>
+                </div>`;
+            container.appendChild(card);
+        }
+
+        function toggleFav(btn) {
+            const icon = btn.querySelector('i');
+            icon.classList.toggle('fas'); icon.classList.toggle('far'); icon.classList.toggle('heart-active');
+        }
+        window.toggleFav = toggleFav;
+
+        function goToDetails(id) {
+            localStorage.setItem('selectedAdId', id);
+            window.location.href = `details.html?id=${id}`;
+        }
+        window.goToDetails = goToDetails;
+
+        async function shareAd(title, id) {
+            const url = `${window.location.origin}/p/${id}`;
+            try {
+                if (navigator.share) await navigator.share({ title, url });
+                else { await navigator.clipboard.writeText(url); UI.showToast('✅ تم نسخ الرابط!'); }
+            } catch (e) { /* silent */ }
+        }
+        window.shareAd = shareAd;
+
+        let searchMap = null;
+        let markerClusterGroup = null;
+        let mapVisible = false;
+
+        function toggleMapView() {
+            mapVisible = !mapVisible;
+            document.getElementById('searchMapWrapper').classList.toggle('hidden', !mapVisible);
+            document.getElementById('mapToggleBtn').classList.toggle('active', mapVisible);
+
+            if (mapVisible && !searchMap) {
+                searchMap = L.map('searchMap').setView([33.5138, 36.2765], 7);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(searchMap);
+                markerClusterGroup = L.markerClusterGroup({ maxClusterRadius: 50 });
+                searchMap.addLayer(markerClusterGroup);
+                updateSearchMap(getFilteredList());
+            } else if (mapVisible && searchMap) {
+                setTimeout(() => searchMap.invalidateSize(), 200);
+            }
+        }
+        window.toggleMapView = toggleMapView;
+
+        function updateSearchMap(list) {
+            if (!searchMap || !markerClusterGroup) return;
+            markerClusterGroup.clearLayers();
+
+            const withLocation = list.filter(ad => ad.lat && ad.lng);
+            const markers = withLocation.map(ad => {
+                const marker = L.marker([ad.lat, ad.lng]);
+                const typeLabel = I18n.typeLabel(ad.property_type);
+                marker.bindPopup(`<b>${typeLabel} — ${ad.city}</b><br>$${Number(ad.price).toLocaleString()}<br><a href="details.html?id=${ad.id}" style="color:#1e3a5f;font-weight:bold;">عرض التفاصيل</a>`);
+                return marker;
+            });
+
+            markerClusterGroup.addLayers(markers);
+
+            if (markers.length > 0) searchMap.fitBounds(markerClusterGroup.getBounds().pad(0.2));
+        }
+
+        async function displayAds() {
+            const container = document.getElementById('adsContainer');
+            container.innerHTML = `<div class="col-span-full text-center py-20 text-gray-400 font-bold"><i class="fas fa-spinner fa-spin text-2xl mb-3"></i><br>جاري تحميل العقارات...</div>`;
+
+            allAdsCache = await DB.fetchProperties({ status: 'active' });
+            if (!allAdsCache.length) {
+                container.innerHTML = `<div class="col-span-full text-center py-20 text-gray-400 font-bold">لا يوجد عقارات حالياً، كن أول من ينشر!</div>`;
+                return;
+            }
+            allAdsCache.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            applyFilters();
+        }
+
+        window.onload = () => {
+            const citySel = document.getElementById('cityFilter');
+            CITIES_LIST.forEach(c => { citySel.innerHTML += `<option value="${c}">${c}</option>`; });
+            displayAds();
+            UI.loadNavAvatar();
+            updateThemeIcon();
+        };
+
+        function updateThemeIcon() {
+            const icon = document.querySelector('#themeToggleBtn i');
+            if (!icon) return;
+            icon.className = window.SEApp.Theme.getTheme() === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+        }
+
+        window.addEventListener('se:langchange', () => { applyFilters(); });
+        window.addEventListener('storage', (e) => { if (e.key === 'se_theme') updateThemeIcon(); });
+
+        // Debounce: يمنع إعادة الفلترة مع كل ضغطة زر، وينتظر توقف المستخدم عن الكتابة
+        const debouncedApplyFilters = UI.debounce(applyFilters, 300);
+        ['mainSearch','propertyTypeFilter','cityFilter','areaFrom','areaTo','priceFrom','priceTo'].forEach(id => {
+            document.getElementById(id).addEventListener('input', debouncedApplyFilters);
+        });
+
+        console.log('🚀 index.html ready (Modular via app.js)');
+    </script>
+</body>
+</html>

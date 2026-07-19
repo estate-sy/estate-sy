@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تفاصيل العقار - العقارات السورية</title>
+
+    <!-- وسوم Open Graph احتياطية عامة (تظهر فقط إن وصل بوت المعاينة لهذه الصفحة مباشرة
+         بدل رابط /p/ID الخاص بالمشاركة - راجع netlify/functions/property-og.js للنسخة الديناميكية الفعلية) -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="العقارات السورية">
+    <meta property="og:title" content="تفاصيل عقار - العقارات السورية">
+    <meta property="og:description" content="شقق، فلل، أراضٍ، ومحلات للبيع والإيجار في سوريا">
+    <meta property="og:image" content="img/favicon.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="img/favicon.png">
+    <link rel="apple-touch-icon" href="img/favicon.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="العقارات السورية">
+    <meta name="theme-color" content="#1e3a5f">
+    <style>
+        body { background-color: #f8fafc; }
+        .slider-item { height: 320px; cursor: zoom-in; border-radius: 0; }
+        .slider-container { border-radius: 0 0 2rem 2rem; }
+        #detailMap { height: 140px; }
+    </style>
+</head>
+<body>
+
+    <div id="se-toast"></div>
+
+    <div id="lightbox" onclick="this.style.display='none'">
+        <img id="lightboxImg" src="">
+        <p class="absolute bottom-10 text-white text-xs">اضغط في أي مكان للإغلاق</p>
+    </div>
+
+    <div id="loadingStatus" class="flex flex-col items-center justify-center min-h-screen text-gray-500">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900 mb-4"></div>
+        <p class="font-bold">جاري جلب بيانات العقار...</p>
+    </div>
+
+    <div id="propertyDetails" class="max-w-md mx-auto bg-white min-h-screen shadow-xl pb-10 hidden"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- ═══ الملف المركزي ═══ -->
+    <script type="module" src="app.js"></script>
+
+    <!-- ═══ منطق صفحة التفاصيل ═══ -->
+    <script type="module">
+        const { Auth, DB, UI, PROPERTY_TYPE_LABELS, OWNERSHIP_LABELS, DEAL_LABELS } = window.SEApp;
+
+        async function loadPropertyFromSupabase() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const propertyId = urlParams.get('id') || localStorage.getItem('selectedAdId');
+
+            if (!propertyId) { showError("عذراً، لم يتم العثور على معرّف الإعلان."); return; }
+
+            const property = await DB.fetchPropertyById(propertyId);
+            if (!property) { showError("عذراً، هذا الإعلان غير موجود."); return; }
+
+            const user = await Auth.getCurrentUser();
+            const isFav = user ? await DB.isFavorited(user.id, property.id) : false;
+
+            renderDetails(property, isFav);
+            DB.incrementViews(property.id, property.views);
+        }
+        loadPropertyFromSupabase();
+
+        async function loadSellerInfo(ownerId) {
+            if (!ownerId) return;
+            const profile = await DB.fetchProfile(ownerId);
+            if (profile) {
+                const nameEl = document.getElementById('sellerName');
+                if (nameEl) nameEl.textContent = profile.name || 'البائع';
+                const avatarEl = document.getElementById('sellerAvatar');
+                if (avatarEl && profile.avatar_url) avatarEl.innerHTML = `<img src="${profile.avatar_url}" class="w-full h-full object-cover rounded-full">`;
+                else if (avatarEl && profile.name) avatarEl.textContent = profile.name.charAt(0).toUpperCase();
+            }
+            const ratings = await DB.fetchSellerRatings(ownerId);
+            if (ratings.length > 0) {
+                const avg = (ratings.reduce((s, r) => s + r.stars, 0) / ratings.length).toFixed(1);
+                updateSellerRatingUI(avg, ratings.length);
+            }
+        }
+
+        async function toggleFavorite() {
+            const property = window._currentProperty;
+            const user = await Auth.getCurrentUser();
+            if (!user) { UI.showToast('⚠️ سجّل الدخول أولاً لإضافة المفضلة'); return; }
+
+            const icon = document.getElementById('likeIcon');
+            const likeTxt = document.getElementById('likeTxt');
+            const currentlyFav = icon.classList.contains('fas');
+
+            if (currentlyFav) {
+                const { error } = await DB.removeFavorite(user.id, property.id);
+                if (!error) { icon.classList.replace('fas', 'far'); likeTxt.textContent = 'أضف للمفضلة'; UI.showToast('تم إلغاء الإضافة للمفضلة'); }
+            } else {
+                const { error } = await DB.addFavorite(user.id, property.id);
+                if (!error) {
+                    icon.classList.replace('far', 'fas'); likeTxt.textContent = 'في المفضلة'; UI.showToast('❤️ تمت الإضافة للمفضلة!');
+                    const prof = await DB.fetchProfile(user.id);
+                    DB.sendNotification({
+                        userId: property.owner_id, actorId: user.id, actorName: prof?.name || 'مستخدم',
+                        type: 'favorite', message: `أضاف ${prof?.name || 'مستخدم'} عقارك للمفضلة`, propertyId: property.id
+                    });
+                }
+            }
+        }
+        window.toggleFavorite = toggleFavorite;
+
+        function renderDetails(property, isFav) {
+            const container = document.getElementById('propertyDetails');
+            const loading = document.getElementById('loadingStatus');
+            const imgs = property.images?.length ? property.images : ["https://via.placeholder.com/500x300?text=Syria+Estate"];
+            // رابط المشاركة يمرّ عبر /p/ID (دالة Netlify الخادمية) لضمان ظهور بطاقة معاينة صحيحة
+            // في واتساب/تيليجرام؛ الرابط المباشر لهذه الصفحة (details.html?id=) لا يعمل معهم
+            // لأنهم لا يُشغّلون جافاسكريبت، فلا يرون البيانات التي نجلبها من Supabase هنا.
+            const shareUrl = `${window.location.origin}/p/${property.id}`;
+            const typeLabel = PROPERTY_TYPE_LABELS[property.property_type] || property.property_type;
+            const dealLabel = DEAL_LABELS[property.deal_type] || property.deal_type;
+            const isLand = property.property_type === 'land';
+
+            container.innerHTML = `
+                <div class="relative">
+                    <div class="slider-container bg-gray-900" id="detailSlider">
+                        ${imgs.map(img => `<div class="slider-item" onclick="openLightbox('${img}')"><img src="${img}" class="w-full h-full object-cover shadow-inner"></div>`).join('')}
+                    </div>
+                    <div class="absolute bottom-6 left-0 right-0 flex justify-center gap-1 z-20">
+                        ${imgs.map((_, i) => `<div class="dot ${i === 0 ? 'active' : ''}" id="dot-${i}"></div>`).join('')}
+                    </div>
+                    <span class="absolute top-4 right-16 bg-amber-500 text-white text-[11px] font-black px-3 py-1.5 rounded-full shadow-lg z-30">${dealLabel}</span>
+                    <button onclick="window.location.href='index.html'" class="absolute top-4 right-4 bg-white/90 p-2.5 rounded-full shadow-2xl z-30 active:scale-90 transition-all">
+                        <i class="fas fa-arrow-right text-gray-800"></i>
+                    </button>
+                    <button onclick="shareThisAd()" class="absolute top-4 left-4 bg-white/90 p-2.5 rounded-full shadow-2xl z-30 active:scale-90 transition-all" title="مشاركة الإعلان">
+                        <i class="fas fa-share-alt text-blue-900"></i>
+                    </button>
+                </div>
+
+                <div class="p-6">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h1 class="text-2xl font-black text-gray-800 tracking-tight">${typeLabel} — ${UI.escapeHtml(property.area_name || property.city)}</h1>
+                            <p class="text-amber-600 font-black text-2xl mt-1">$${Number(property.price).toLocaleString()}</p>
+                        </div>
+                        <span class="bg-blue-50 text-blue-900 px-4 py-1.5 rounded-xl text-xs font-bold border border-blue-100 italic">
+                            <i class="fas fa-map-marker-alt ml-1"></i>${property.city}
+                        </span>
+                    </div>
+
+                    <div class="bg-gradient-to-l from-blue-50 to-white border border-blue-100 rounded-2xl p-4 mb-6" id="sellerCard">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-full bg-blue-900 flex items-center justify-center text-white font-black text-lg shadow-sm" id="sellerAvatar">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div class="flex-1">
+                                <a id="sellerName" href="#" onclick="goToSellerProfile(event)" class="font-black text-gray-800 text-sm hover:text-blue-900 transition cursor-pointer">البائع</a>
+                                <div id="sellerRatingDisplay" class="flex items-center gap-1 mt-0.5">
+                                    <span class="text-gray-400 text-[10px] font-bold">لا توجد تقييمات بعد</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <button onclick="openRatingModal()" class="bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-black px-3 py-2 rounded-xl hover:bg-amber-100 transition flex items-center gap-1">
+                                    <i class="fas fa-star text-amber-400"></i> قيّم البائع
+                                </button>
+                                <button id="likeBtn" onclick="toggleFavorite()" class="bg-red-50 border border-red-200 text-red-600 text-[11px] font-black px-3 py-2 rounded-xl hover:bg-red-100 transition flex items-center gap-1">
+                                    <i class="${isFav ? 'fas' : 'far'} fa-heart" id="likeIcon"></i> <span id="likeTxt">${isFav ? 'في المفضلة' : 'أضف للمفضلة'}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 my-6">
+                        <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center shadow-sm">
+                            <i class="fas fa-ruler-combined text-blue-900 mb-1 block"></i>
+                            <p class="text-[10px] text-gray-400 font-bold uppercase">المساحة</p>
+                            <p class="text-sm font-bold text-gray-700">${property.area_m2 || '-'} م²</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center shadow-sm">
+                            <i class="fas fa-file-signature text-blue-900 mb-1 block"></i>
+                            <p class="text-[10px] text-gray-400 font-bold uppercase">حالة الملكية</p>
+                            <p class="text-sm font-bold text-gray-700">${OWNERSHIP_LABELS[property.ownership_status] || '-'}</p>
+                        </div>
+                        ${!isLand ? `
+                        <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center shadow-sm">
+                            <i class="fas fa-door-open text-blue-900 mb-1 block"></i>
+                            <p class="text-[10px] text-gray-400 font-bold uppercase">عدد الغرف</p>
+                            <p class="text-sm font-bold text-gray-700">${property.rooms || '-'}</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center shadow-sm">
+                            <i class="fas fa-building text-blue-900 mb-1 block"></i>
+                            <p class="text-[10px] text-gray-400 font-bold uppercase">الطابق</p>
+                            <p class="text-sm font-bold text-gray-700">${property.floor_number || '-'} من ${property.total_floors || '-'}</p>
+                        </div>` : ''}
+                    </div>
+
+                    <div class="mb-6">
+                        <h3 class="font-bold text-gray-800 mb-3 border-r-4 border-blue-900 pr-3">الوصف</h3>
+                        <div class="text-gray-600 text-sm leading-relaxed bg-blue-50/30 p-5 rounded-2xl border border-blue-50/50">
+                            ${property.description ? UI.escapeHtmlMultiline(property.description) : 'لا يوجد وصف مضاف لهذا العقار.'}
+                        </div>
+                    </div>
+
+                    ${(property.schools_nearby || property.transport_nearby || property.medical_centers_nearby || property.area_description) ? `
+                    <div class="mb-6">
+                        <h3 class="font-bold text-gray-800 mb-3 border-r-4 border-amber-500 pr-3">عن المنطقة المحيطة</h3>
+                        <div class="space-y-2">
+                            ${property.schools_nearby ? `
+                            <div class="flex items-start gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                <i class="fas fa-school text-blue-900 mt-0.5"></i>
+                                <div><p class="text-[10px] text-gray-400 font-bold">المدارس القريبة</p><p class="text-sm text-gray-700 font-medium">${UI.escapeHtml(property.schools_nearby)}</p></div>
+                            </div>` : ''}
+                            ${property.transport_nearby ? `
+                            <div class="flex items-start gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                <i class="fas fa-bus text-blue-900 mt-0.5"></i>
+                                <div><p class="text-[10px] text-gray-400 font-bold">وسائل النقل القريبة</p><p class="text-sm text-gray-700 font-medium">${UI.escapeHtml(property.transport_nearby)}</p></div>
+                            </div>` : ''}
+                            ${property.medical_centers_nearby ? `
+                            <div class="flex items-start gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                <i class="fas fa-clinic-medical text-blue-900 mt-0.5"></i>
+                                <div><p class="text-[10px] text-gray-400 font-bold">المراكز الطبية القريبة</p><p class="text-sm text-gray-700 font-medium">${UI.escapeHtml(property.medical_centers_nearby)}</p></div>
+                            </div>` : ''}
+                            ${property.area_description ? `
+                            <div class="flex items-start gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                <i class="fas fa-map-marked text-blue-900 mt-0.5"></i>
+                                <div><p class="text-[10px] text-gray-400 font-bold">وصف عام عن المنطقة</p><p class="text-sm text-gray-700 font-medium">${UI.escapeHtmlMultiline(property.area_description)}</p></div>
+                            </div>` : ''}
+                        </div>
+                    </div>` : ''}
+
+                    <div class="mb-8 overflow-hidden rounded-2xl border border-gray-200 shadow-sm">
+                        <h3 class="font-bold text-gray-800 p-3 bg-gray-50 text-xs"><i class="fas fa-map text-blue-900 ml-2"></i>موقع العقار</h3>
+                        <div id="detailMap"></div>
+                    </div>
+
+                    <div class="text-center text-xs text-gray-400 font-bold mb-4">
+                        <i class="fas fa-eye"></i> ${property.views || 0} مشاهدة
+                    </div>
+
+                    <div class="space-y-3">
+                        <a href="https://wa.me/${(property.phone||'').replace(/[^\d+]/g, '')}" target="_blank" class="flex items-center justify-center gap-3 w-full bg-blue-900 text-white text-center font-bold py-4 rounded-2xl shadow-lg hover:bg-blue-950 transition-all active:scale-95">
+                            <i class="fab fa-whatsapp text-2xl"></i><span>تواصل عبر واتساب</span>
+                        </a>
+                        <div class="flex gap-3">
+                            <a href="tel:${property.phone}" class="flex-1 flex items-center justify-center gap-3 bg-gray-900 text-white text-center font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all">
+                                <i class="fas fa-phone-alt text-xl text-amber-400"></i><span>اتصال مباشر</span>
+                            </a>
+                            <button onclick="shareThisAd()" class="bg-gray-100 text-gray-700 px-4 py-4 rounded-2xl font-bold border hover:bg-gray-200 transition active:scale-95" title="مشاركة">
+                                <i class="fas fa-share-alt text-blue-900 text-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            window._currentProperty = property;
+            window._shareUrl = shareUrl;
+            updateClientSideMetaTags(property, typeLabel, dealLabel);
+
+            loadSellerInfo(property.owner_id);
+
+            const slider = document.getElementById('detailSlider');
+            slider.addEventListener('scroll', () => {
+                const index = Math.round(slider.scrollLeft / slider.clientWidth);
+                document.querySelectorAll('.dot').forEach((dot, i) => dot.classList.toggle('active', i === Math.abs(index)));
+            });
+
+            if (property.lat && property.lng) {
+                const map = L.map('detailMap', { zoomControl: false, dragging: true, scrollWheelZoom: false }).setView([property.lat, property.lng], 14);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
+                L.marker([property.lat, property.lng]).addTo(map);
+            } else {
+                document.getElementById('detailMap').innerHTML = '<div class="h-full flex items-center justify-center text-xs text-gray-400">لم يُحدَّد موقع دقيق لهذا العقار</div>';
+            }
+
+            loading.classList.add('hidden');
+            container.classList.remove('hidden');
+        }
+
+        /**
+         * تحديث وسوم <head> من المتصفح بعد جلب البيانات.
+         * ⚠️ هذا يُحسّن فقط: عنوان تبويب المتصفح، ونافذة navigator.share() الأصلية
+         * على الجوال (تعرض هذه القيم أحياناً). هذا **لا يُصلح** بطاقة معاينة
+         * واتساب/تيليجرام/فيسبوك، لأن روبوتات تلك التطبيقات تقرأ الصفحة عبر طلب HTTP
+         * مباشر ولا تُشغّل جافاسكريبت إطلاقاً - فلن تنتظر وصول هذا الكود أو تنفيذه.
+         * الحل الفعلي لتلك المنصات هو دالة netlify/functions/property-og.js
+         * التي تُنشئ الوسوم من جهة الخادم قبل أي جافاسكريبت.
+         */
+        function updateClientSideMetaTags(property, typeLabel, dealLabel) {
+            const title = `${typeLabel} ${dealLabel} في ${property.city} - العقارات السورية`;
+            const desc  = (property.description || '').slice(0, 160);
+            const image = property.images?.[0] || '';
+
+            document.title = title;
+            setMeta('property', 'og:title', title);
+            setMeta('property', 'og:description', desc);
+            if (image) setMeta('property', 'og:image', image);
+            setMeta('property', 'og:url', window._shareUrl);
+        }
+
+        function setMeta(attr, key, value) {
+            let el = document.querySelector(`meta[${attr}="${key}"]`);
+            if (!el) {
+                el = document.createElement('meta');
+                el.setAttribute(attr, key);
+                document.head.appendChild(el);
+            }
+            el.setAttribute('content', value);
+        }
+
+        async function shareThisAd() {
+            const property = window._currentProperty;
+            const url = window._shareUrl;
+            if (!property || !url) return;
+            const typeLabel = PROPERTY_TYPE_LABELS[property.property_type] || property.property_type;
+            const text = `🏠 ${typeLabel} في ${property.city} — $${Number(property.price).toLocaleString()} — العقارات السورية!`;
+            try {
+                if (navigator.share) await navigator.share({ title: `${typeLabel} — العقارات السورية`, text, url });
+                else { await navigator.clipboard.writeText(url); UI.showToast('✅ تم نسخ رابط الإعلان!'); }
+            } catch (err) {
+                if (err.name !== 'AbortError') navigator.clipboard.writeText(url).then(() => UI.showToast('✅ تم نسخ الرابط!'));
+            }
+        }
+        window.shareThisAd = shareThisAd;
+
+        let _selectedRating = 0;
+        const ratingLabels = { 1: '😞 سيء جداً', 2: '😕 سيء', 3: '😐 مقبول', 4: '😊 جيد', 5: '🤩 ممتاز!' };
+
+        function openRatingModal() {
+            _selectedRating = 0;
+            let modal = document.getElementById('ratingModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'ratingModal';
+                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;';
+                modal.innerHTML = `
+                    <div style="background:white;border-radius:2rem;padding:2rem;width:100%;max-width:340px;text-align:center;box-shadow:0 25px 50px rgba(0,0,0,0.3);" onclick="event.stopPropagation()">
+                        <div style="font-size:2.5rem;margin-bottom:0.5rem;">⭐</div>
+                        <h3 style="font-family:'Tajawal',sans-serif;font-weight:900;font-size:1.25rem;color:#111827;margin-bottom:0.25rem;">قيّم البائع</h3>
+                        <p style="font-family:'Tajawal',sans-serif;font-size:0.8rem;color:#6b7280;margin-bottom:1.5rem;">ساعد المشترين الآخرين بتقييمك الصادق</p>
+                        <div id="starRow" style="display:flex;justify-content:center;gap:8px;margin-bottom:1.5rem;">
+                            ${[1,2,3,4,5].map(n => `<span class="star-btn" data-val="${n}" onclick="selectStar(${n})" onmouseover="hoverStar(${n})" onmouseout="unhoverStar()">★</span>`).join('')}
+                        </div>
+                        <p id="ratingLabel" style="font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.9rem;color:#6b7280;margin-bottom:1.5rem;min-height:24px;"></p>
+                        <button id="submitRatingBtn" onclick="submitRating()" style="width:100%;background:#1e3a5f;color:white;border:none;border-radius:1rem;padding:14px;font-family:'Tajawal',sans-serif;font-weight:900;font-size:1rem;cursor:pointer;opacity:0.5;pointer-events:none;">إرسال التقييم</button>
+                        <button onclick="document.getElementById('ratingModal').remove()" style="width:100%;background:none;border:none;color:#9ca3af;font-family:'Tajawal',sans-serif;font-weight:700;font-size:0.8rem;margin-top:0.75rem;cursor:pointer;padding:8px;">إلغاء</button>
+                    </div>`;
+                modal.onclick = () => modal.remove();
+                document.body.appendChild(modal);
+            }
+            modal.style.display = 'flex';
+        }
+        window.openRatingModal = openRatingModal;
+
+        function hoverStar(n) {
+            document.querySelectorAll('.star-btn').forEach((s, i) => { s.style.color = i < n ? '#f59e0b' : '#d1d5db'; s.style.transform = i < n ? 'scale(1.2)' : 'scale(1)'; });
+            document.getElementById('ratingLabel').textContent = ratingLabels[n] || '';
+        }
+        window.hoverStar = hoverStar;
+
+        function unhoverStar() {
+            document.querySelectorAll('.star-btn').forEach((s, i) => { s.style.color = i < _selectedRating ? '#f59e0b' : '#d1d5db'; s.style.transform = i < _selectedRating ? 'scale(1.1)' : 'scale(1)'; });
+            document.getElementById('ratingLabel').textContent = _selectedRating ? (ratingLabels[_selectedRating] || '') : '';
+        }
+        window.unhoverStar = unhoverStar;
+
+        function selectStar(n) {
+            _selectedRating = n;
+            unhoverStar();
+            const btn = document.getElementById('submitRatingBtn');
+            btn.style.opacity = '1'; btn.style.pointerEvents = 'auto';
+        }
+        window.selectStar = selectStar;
+
+        async function submitRating() {
+            if (!_selectedRating) return;
+            const property = window._currentProperty;
+            if (!property) return;
+            const user = await Auth.getCurrentUser();
+            if (!user) { UI.showToast('⚠️ سجّل الدخول أولاً للتقييم'); return; }
+
+            const { error } = await DB.submitRating(property.owner_id, user.id, _selectedRating);
+            if (error) { UI.showToast('⚠️ تعذّر إرسال التقييم'); return; }
+
+            const ratings = await DB.fetchSellerRatings(property.owner_id);
+            if (ratings.length > 0) {
+                const avg = (ratings.reduce((s, r) => s + r.stars, 0) / ratings.length).toFixed(1);
+                updateSellerRatingUI(avg, ratings.length);
+            }
+            document.getElementById('ratingModal')?.remove();
+            UI.showToast(`✅ شكراً! تقييمك ${ratingLabels[_selectedRating]}`);
+        }
+        window.submitRating = submitRating;
+
+        function updateSellerRatingUI(avg, count) {
+            const display = document.getElementById('sellerRatingDisplay');
+            if (!display) return;
+            const full = Math.round(avg);
+            display.innerHTML = `
+                <span style="color:#f59e0b;font-size:12px;">${'★'.repeat(full)}${'☆'.repeat(5 - full)}</span>
+                <span style="color:#6b7280;font-size:10px;font-weight:700;">${avg} (${count} تقييم)</span>`;
+        }
+
+        function openLightbox(src) {
+            document.getElementById('lightboxImg').src = src;
+            document.getElementById('lightbox').style.display = 'flex';
+        }
+        window.openLightbox = openLightbox;
+
+        function goToSellerProfile(e) {
+            e.preventDefault();
+            const property = window._currentProperty;
+            if (!property || !property.owner_id) return;
+            window.location.href = 'profile.html?id=' + property.owner_id;
+        }
+        window.goToSellerProfile = goToSellerProfile;
+
+        function showError(msg) {
+            document.getElementById('loadingStatus').innerHTML = `
+                <div class="p-10 text-center">
+                    <i class="fas fa-exclamation-circle text-red-500 text-4xl mb-4"></i>
+                    <p class="font-bold text-gray-800">${msg}</p>
+                    <a href="index.html" class="inline-block mt-4 text-blue-900 font-bold underline">العودة للرئيسية</a>
+                </div>`;
+        }
+
+        console.log('🚀 details.html ready (Modular via app.js)');
+    </script>
+</body>
+</html>

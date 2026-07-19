@@ -1,0 +1,27 @@
+{
+  "name": "العقارات السورية - Syria Estate",
+  "short_name": "العقارات السورية",
+  "description": "منصة العقارات السورية - بيع وإيجار الشقق والأراضي والمحلات في سوريا",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f1f33",
+  "theme_color": "#1e3a5f",
+  "lang": "ar",
+  "dir": "rtl",
+  "orientation": "portrait",
+  "categories": ["business", "lifestyle"],
+  "icons": [
+    { "src": "/img/favicon.png", "sizes": "72x72",   "type": "image/png", "purpose": "any" },
+    { "src": "/img/favicon.png", "sizes": "96x96",   "type": "image/png", "purpose": "any" },
+    { "src": "/img/favicon.png", "sizes": "128x128", "type": "image/png", "purpose": "any" },
+    { "src": "/img/favicon.png", "sizes": "144x144", "type": "image/png", "purpose": "any" },
+    { "src": "/img/favicon.png", "sizes": "152x152", "type": "image/png", "purpose": "any" },
+    { "src": "/img/favicon.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/img/favicon.png", "sizes": "384x384", "type": "image/png", "purpose": "any" },
+    { "src": "/img/favicon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/img/favicon.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/img/favicon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

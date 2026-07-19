@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إضافة عقار - العقارات السورية</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="img/favicon.png">
+    <link rel="apple-touch-icon" href="img/favicon.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="العقارات السورية">
+    <meta name="theme-color" content="#1e3a5f">
+    <style>
+        body { background-color: var(--color-bg); }
+        .suggestion-box { max-height: 250px; overflow-y: auto; z-index: 100; border-radius: 12px; border: 1px solid var(--color-border); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        #locationMap { height: 260px; }
+        .deal-tab { flex: 1; text-align: center; padding: 10px; font-weight: bold; border-radius: 10px; cursor: pointer; transition: 0.2s; color: #6b7280; }
+        .deal-tab.active { background: var(--color-primary); color: white; }
+    </style>
+</head>
+<body class="p-2 sm:p-4">
+
+    <div id="loadingOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:9999; align-items:center; justify-content:center; flex-direction:column; gap:1rem;">
+        <div style="width:4rem; height:4rem; border:5px solid var(--color-primary); border-top-color:transparent; border-radius:50%;" class="animate-spin"></div>
+        <p style="color:white; font-weight:bold; font-size:1.1rem;" id="loadingText">جاري التحقق...</p>
+        <p style="color:var(--color-accent); font-size:0.75rem; font-family:monospace;" id="loadingSubtext"></p>
+    </div>
+
+    <div id="authCheckSpinner" style="position:fixed; inset:0; background:rgba(15,31,51,0.94); display:flex; align-items:center; justify-content:center; z-index:9998; flex-direction:column; gap:1rem;">
+        <div style="width:5rem; height:5rem; border:5px solid var(--color-primary); border-top-color:transparent; border-radius:50%;" class="animate-spin"></div>
+        <p style="color:white; font-weight:bold; font-size:1.2rem;">العقارات السورية</p>
+        <p style="color:var(--color-accent); font-size:0.875rem;">جاري التحقق من الهوية...</p>
+    </div>
+
+    <div class="max-w-md mx-auto bg-white shadow-2xl rounded-2xl overflow-hidden border border-gray-100 pb-8">
+
+        <div class="gradient-header p-6 text-white text-center relative">
+            <a href="profile.html" class="absolute right-4 top-6 text-white/80 hover:text-white transition">
+                <i class="fas fa-arrow-right text-xl"></i>
+            </a>
+            <a class="brand-block" href="index.html" style="justify-content:center; margin-bottom:0.25rem;">
+                <img class="brand-img" src="img/logo.png" alt="العقارات السورية">
+                <div class="brand-texts">
+                    <span class="brand-text-en">Syria Estate</span>
+                    <span class="brand-text-ar">العقارات السورية</span>
+                </div>
+            </a>
+            <p class="text-gray-300 text-sm mt-1 font-bold">إضافة عقار جديد</p>
+        </div>
+
+        <form id="propertyForm" class="p-5 space-y-5">
+
+            <div class="flex gap-2 bg-gray-100 p-1 rounded-xl">
+                <div class="deal-tab active" data-value="sale" onclick="selectDealType(this)">للبيع</div>
+                <div class="deal-tab" data-value="rent" onclick="selectDealType(this)">للإيجار</div>
+            </div>
+
+            <div class="bg-blue-50 p-4 rounded-xl border-2 border-dashed border-blue-200 text-center">
+                <input type="file" id="propertyImages" accept="image/*" multiple class="hidden" onchange="(async()=>await handleImages(this))()" required>
+                <label for="propertyImages" class="cursor-pointer text-blue-900 font-bold block mb-2">
+                    <i class="fas fa-camera text-2xl mb-2"></i><br>
+                    📸 أضف صور العقار
+                </label>
+                <p class="text-xs text-gray-500">اختر صورة واحدة على الأقل (حد أقصى 5MB لكل صورة)</p>
+                <div id="sliderWrapper" class="hidden relative mt-3">
+                    <div id="imageSlider" class="slider-container bg-white border border-blue-100 shadow-inner" style="border-radius:1rem;"></div>
+                    <div id="dotsContainer" class="flex justify-center mt-3"></div>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-bold mb-2 text-gray-700">
+                    <i class="fas fa-building text-blue-900"></i> نوع العقار
+                </label>
+                <select id="propertyType" class="input-field" required>
+                    <option value="">-- اختر نوع العقار --</option>
+                    <option value="apartment">شقة</option>
+                    <option value="villa">فيلا</option>
+                    <option value="land">أرض</option>
+                    <option value="shop">محل تجاري</option>
+                    <option value="office">مكتب</option>
+                </select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold mb-1 text-gray-600">
+                        <i class="fas fa-map-marker-alt text-blue-900"></i> المحافظة
+                    </label>
+                    <select id="city" class="input-field" required>
+                        <option value="">اختر المحافظة</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold mb-1 text-gray-600">
+                        <i class="fas fa-map-pin text-blue-900"></i> الحي / المنطقة
+                    </label>
+                    <input type="text" id="areaName" placeholder="مثال: المزة" class="input-field">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-bold mb-2 text-gray-700">
+                    <i class="fas fa-map-marked-alt text-blue-900"></i> حدّد موقع العقار على الخريطة
+                </label>
+                <div id="locationMap"></div>
+                <p id="geoStatus" class="text-xs text-blue-700 mt-1 font-bold"><i class="fas fa-spinner fa-spin"></i> جاري تحديد موقعك الحالي تلقائياً...</p>
+                <p class="text-xs text-gray-500 mt-1">اسحب العلامة (Marker) أو اضغط على الخريطة لتحديد الموقع بدقة</p>
+                <input type="hidden" id="lat">
+                <input type="hidden" id="lng">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold mb-1 text-gray-600">
+                        <i class="fas fa-ruler-combined text-blue-900"></i> المساحة (م²)
+                    </label>
+                    <input type="number" id="areaM2" placeholder="120" class="input-field" required min="0">
+                </div>
+                <div id="roomsField">
+                    <label class="block text-xs font-bold mb-1 text-gray-600">
+                        <i class="fas fa-door-open text-blue-900"></i> عدد الغرف
+                    </label>
+                    <input type="number" id="rooms" placeholder="3" class="input-field" min="0">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4" id="floorFields">
+                <div>
+                    <label class="block text-xs font-bold mb-1 text-gray-600">الطابق</label>
+                    <input type="number" id="floorNumber" placeholder="2" class="input-field">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold mb-1 text-gray-600">عدد الطوابق الكلي</label>
+                    <input type="number" id="totalFloors" placeholder="5" class="input-field">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold mb-1 text-gray-600">
+                    <i class="fas fa-file-signature text-blue-900"></i> حالة الملكية / الطابو
+                </label>
+                <select id="ownershipStatus" class="input-field" required>
+                    <option value="">اختر حالة الملكية</option>
+                    <option value="green_tabu">طابو أخضر</option>
+                    <option value="temp_tabu">طابو مؤقت</option>
+                    <option value="notarized">محكمة (كاتب عدل)</option>
+                    <option value="power_of_attorney">وكالة</option>
+                    <option value="other">أخرى</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold mb-1 text-gray-600">
+                    <i class="fas fa-dollar-sign text-blue-900"></i> السعر ($)
+                </label>
+                <input type="number" id="price" placeholder="45000" class="input-field" style="border-color:#fcd34d; background:#fffbeb; color:#92400e;" required min="0">
+            </div>
+
+            <div>
+                <label class="block text-sm font-bold mb-2 text-gray-700">
+                    <i class="fas fa-align-right text-blue-900"></i> الوصف
+                </label>
+                <textarea id="description" rows="4" placeholder="صف العقار بالتفصيل (الإطلالة، القرب من الخدمات، إلخ)..." class="input-field" required></textarea>
+            </div>
+
+            <!-- معلومات المنطقة المحيطة -->
+            <div class="bg-blue-50/50 border border-blue-100 rounded-xl p-4 space-y-3">
+                <h3 class="text-sm font-bold text-blue-900 flex items-center gap-2">
+                    <i class="fas fa-map-signs"></i> معلومات المنطقة المحيطة (اختياري)
+                </h3>
+                <div>
+                    <label class="block text-xs font-bold mb-1 text-gray-600">
+                        <i class="fas fa-school text-blue-900"></i> المدارس القريبة
+                    </label>
+                    <input type="text" id="schoolsNearby" placeholder="مثال: مدرسة الشهيد، معهد الحرية (200م)" class="input-field">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold mb-1 text-gray-600">
+                        <i class="fas fa-bus text-blue-900"></i> وسائل النقل القريبة
+                    </label>
+                    <input type="text" id="transportNearby" placeholder="مثال: موقف باصات، خط سرفيس رقم 5" class="input-field">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold mb-1 text-gray-600">
+                        <i class="fas fa-clinic-medical text-blue-900"></i> المراكز الطبية القريبة
+                    </label>
+                    <input type="text" id="medicalCentersNearby" placeholder="مثال: صيدلية، مشفى، عيادة" class="input-field">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold mb-1 text-gray-600">
+                        <i class="fas fa-map-marked text-blue-900"></i> وصف عام عن المنطقة
+                    </label>
+                    <textarea id="areaDescription" rows="2" placeholder="مثال: منطقة هادئة، قريبة من مركز المدينة..." class="input-field"></textarea>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-r from-gray-900 to-gray-800 p-4 rounded-xl border-l-4 border-amber-500 shadow-lg">
+                <label class="block text-xs font-bold text-amber-400 mb-2">
+                    <i class="fab fa-whatsapp text-lg"></i> واتساب التواصل
+                </label>
+                <input type="tel" id="phone" placeholder="+9639xxxxxxxx"
+                       class="w-full bg-transparent text-white text-lg font-bold outline-none placeholder-gray-500"
+                       dir="ltr" required oninput="validatePhoneField()">
+                <p id="phoneHint" class="text-[11px] text-amber-300 mt-1.5">
+                    <i class="fas fa-info-circle"></i> أدخل الرقم مع النداء الدولي (مثال: <span dir="ltr">+963</span> لسوريا) ليصل التواصل بشكل صحيح
+                </p>
+            </div>
+
+            <button type="submit" id="submitBtn" class="btn-primary w-full text-lg flex items-center justify-center gap-2">
+                <i class="fas fa-rocket"></i>
+                <span>نشر الإعلان الآن</span>
+            </button>
+        </form>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- ═══ الملف المركزي ═══ -->
+    <script type="module" src="app.js"></script>
+
+    <!-- ═══ منطق واجهة هذه الصفحة (كلاسيكي — تفاعل فوري بدون انتظار الموديول) ═══ -->
+    <script>
+        let currentImagesFiles = [];
+        let currentDealType = 'sale';
+
+        function selectDealType(el) {
+            document.querySelectorAll('.deal-tab').forEach(t => t.classList.remove('active'));
+            el.classList.add('active');
+            currentDealType = el.dataset.value;
+        }
+
+        // ── التحقق من صيغة رقم الواتساب + اقتراح النداء الدولي +963 تلقائياً ──
+        function validatePhoneField() {
+            const input = document.getElementById('phone');
+            const hint  = document.getElementById('phoneHint');
+            let val = input.value.trim();
+
+            // إذا بدأ الرقم بصفر محلي (مثال: 0944xxxxxx) نقترح +963 تلقائياً
+            if (/^0\d{8,9}$/.test(val)) {
+                const suggested = '+963' + val.replace(/^0/, '');
+                hint.innerHTML = `
+                    <i class="fas fa-magic"></i> يبدو أنك أدخلت رقماً محلياً — هل تقصد
+                    <button type="button" onclick="applySuggestedPhone('${suggested}')" class="underline font-bold text-amber-200" style="direction:ltr; display:inline;">${suggested}</button>؟`;
+                return;
+            }
+
+            if (!val) {
+                hint.innerHTML = `<i class="fas fa-info-circle"></i> أدخل الرقم مع النداء الدولي (مثال: <span dir="ltr">+963</span> لسوريا) ليصل التواصل بشكل صحيح`;
+                return;
+            }
+
+            if (/^\+\d{8,15}$/.test(val)) {
+                hint.innerHTML = `<i class="fas fa-check-circle text-green-400"></i> صيغة الرقم صحيحة`;
+            } else {
+                hint.innerHTML = `<i class="fas fa-exclamation-triangle"></i> تأكد من إضافة النداء الدولي في البداية (مثال: <span dir="ltr">+963</span>)`;
+            }
+        }
+
+        function applySuggestedPhone(value) {
+            const input = document.getElementById('phone');
+            input.value = value;
+            validatePhoneField();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const propertyTypeSel = document.getElementById('propertyType');
+            propertyTypeSel.addEventListener('change', () => {
+                const isLand = propertyTypeSel.value === 'land';
+                document.getElementById('roomsField').style.display = isLand ? 'none' : 'block';
+                document.getElementById('floorFields').style.display = isLand ? 'none' : 'grid';
+            });
+        });
+
+        let map, marker;
+        function initMap() {
+            const defaultLat = 33.5138, defaultLng = 36.2765;
+            map = L.map('locationMap').setView([defaultLat, defaultLng], 11);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map);
+            marker = L.marker([defaultLat, defaultLng], { draggable: true }).addTo(map);
+
+            function setLatLng(lat, lng) {
+                document.getElementById('lat').value = lat;
+                document.getElementById('lng').value = lng;
+            }
+            setLatLng(defaultLat, defaultLng);
+
+            marker.on('dragend', () => { const pos = marker.getLatLng(); setLatLng(pos.lat, pos.lng); });
+            map.on('click', (e) => { marker.setLatLng(e.latlng); setLatLng(e.latlng.lat, e.latlng.lng); });
+
+            const geoStatus = document.getElementById('geoStatus');
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    const { latitude, longitude } = pos.coords;
+                    map.setView([latitude, longitude], 15);
+                    marker.setLatLng([latitude, longitude]);
+                    setLatLng(latitude, longitude);
+                    geoStatus.innerHTML = '<i class="fas fa-check-circle text-green-600"></i> تم تحديد موقعك الحالي تلقائياً — يمكنك تعديله بالسحب';
+                }, (err) => {
+                    geoStatus.innerHTML = '<i class="fas fa-info-circle text-amber-500"></i> تعذّر تحديد موقعك تلقائياً — حدّده يدوياً على الخريطة';
+                }, { enableHighAccuracy: true, timeout: 8000 });
+            } else {
+                geoStatus.innerHTML = '<i class="fas fa-info-circle text-amber-500"></i> متصفحك لا يدعم تحديد الموقع — حدّده يدوياً على الخريطة';
+            }
+        }
+
+        window.onload = function() {
+            const citySel = document.getElementById('city');
+            (window.SEApp?.CITIES_LIST || []).forEach(city => { citySel.innerHTML += `<option value="${city}">${city}</option>`; });
+            initMap();
+        };
+
+        async function handleImages(input) {
+            const files = Array.from(input.files);
+            if (files.length === 0) return;
+            const { Storage } = window.SEApp;
+            const label = document.querySelector('label[for="propertyImages"]');
+
+            const compressed = await Storage.compressImages(files, (i, total) => {
+                if (label) label.innerHTML = `<i class="fas fa-compress-arrows-alt text-2xl mb-2 text-amber-500 animate-pulse"></i><br>⏳ ضغط الصورة ${i} من ${total}...`;
+            });
+            currentImagesFiles = compressed;
+
+            const originalTotal   = files.reduce((s, f) => s + f.size, 0);
+            const compressedTotal = compressed.reduce((s, f) => s + f.size, 0);
+            const savedPct = (100 - compressedTotal / originalTotal * 100).toFixed(0);
+
+            if (label) label.innerHTML = `<i class="fas fa-check-circle text-2xl mb-1 text-blue-900"></i><br>✅ ${files.length} صورة — ${(compressedTotal/1024).toFixed(0)}KB (وفّرنا ${savedPct}%)`;
+
+            const slider = document.getElementById('imageSlider');
+            const dots   = document.getElementById('dotsContainer');
+            slider.innerHTML = ''; dots.innerHTML = '';
+
+            compressed.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const sizeKB = (file.size / 1024).toFixed(0);
+                    slider.innerHTML += `
+                        <div class="slider-item relative" style="height:250px;">
+                            <img src="${e.target.result}" class="w-full h-full object-cover">
+                            <div style="position:absolute;bottom:6px;left:8px;background:rgba(0,0,0,0.55);color:var(--color-accent);font-size:10px;font-weight:bold;padding:2px 7px;border-radius:999px;">${sizeKB}KB</div>
+                        </div>`;
+                    dots.innerHTML += `<div class="dot ${index===0?'active':''}" onclick="scrollToImage(${index})"></div>`;
+                    document.getElementById('sliderWrapper').classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function scrollToImage(index) {
+            const slider = document.getElementById('imageSlider');
+            slider.scrollTo({ left: slider.offsetWidth * index, behavior: 'smooth' });
+            document.querySelectorAll('.dot').forEach((dot, i) => dot.classList.toggle('active', i === index));
+        }
+    </script>
+
+    <!-- ═══ منطق التحقق من الهوية والحفظ (يعتمد على app.js) ═══ -->
+    <script type="module">
+        const { Auth, Storage, DB, UI } = window.SEApp;
+
+        let currentUser = null;
+        let authReady = false;
+
+        const authSpinner    = document.getElementById('authCheckSpinner');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingText    = document.getElementById('loadingText');
+        const loadingSubtext = document.getElementById('loadingSubtext');
+
+        async function init() {
+            const user = await Auth.requireAuth();
+            if (!user) return;
+            currentUser = user;
+            authReady = true;
+
+            const phoneInput = document.getElementById('phone');
+            if (!phoneInput.value && user.phone) phoneInput.value = user.phone;
+            validatePhoneField();
+
+            setTimeout(() => { authSpinner.style.display = 'none'; }, 500);
+        }
+        init();
+
+        Auth.onAuthStateChange((event, session) => {
+            if (!session) { authReady = false; currentUser = null; }
+        });
+
+        function buildPropertyPayload(imageUrls, ownerId) {
+            const propertyType = document.getElementById('propertyType').value;
+            const isLand = propertyType === 'land';
+            return {
+                deal_type: currentDealType,
+                property_type: propertyType,
+                city: document.getElementById('city').value,
+                area_name: document.getElementById('areaName').value || null,
+                lat: parseFloat(document.getElementById('lat').value) || null,
+                lng: parseFloat(document.getElementById('lng').value) || null,
+                area_m2: parseFloat(document.getElementById('areaM2').value),
+                rooms: isLand ? null : (parseInt(document.getElementById('rooms').value) || null),
+                floor_number: isLand ? null : (parseInt(document.getElementById('floorNumber').value) || null),
+                total_floors: isLand ? null : (parseInt(document.getElementById('totalFloors').value) || null),
+                ownership_status: document.getElementById('ownershipStatus').value,
+                price: parseFloat(document.getElementById('price').value),
+                currency: 'USD',
+                description: document.getElementById('description').value,
+                schools_nearby: document.getElementById('schoolsNearby').value || null,
+                transport_nearby: document.getElementById('transportNearby').value || null,
+                medical_centers_nearby: document.getElementById('medicalCentersNearby').value || null,
+                area_description: document.getElementById('areaDescription').value || null,
+                phone: document.getElementById('phone').value,
+                images: imageUrls,
+                owner_id: ownerId,
+                status: 'active',
+                views: 0,
+                favorites_count: 0
+            };
+        }
+
+        document.getElementById('propertyForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            if (!authReady || !currentUser) { alert('⚠️ يرجى الانتظار حتى يتم التحقق من الهوية'); return; }
+            if (currentImagesFiles.length === 0) { alert('⚠️ يرجى إضافة صورة واحدة على الأقل'); return; }
+
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner animate-spin"></i> جاري النشر...';
+
+            loadingOverlay.style.display = 'flex';
+            loadingText.textContent = 'جاري تحضير البيانات...';
+            loadingSubtext.textContent = '';
+
+            try {
+                const imageUrls = await Storage.uploadPropertyImages(currentImagesFiles, currentUser.id, (i, total, file) => {
+                    loadingText.textContent = `رفع الصورة ${i} من ${total}`;
+                    loadingSubtext.textContent = `حجم الملف: ${(file.size / 1024).toFixed(0)} KB`;
+                });
+
+                loadingText.textContent = 'حفظ البيانات في قاعدة البيانات...';
+                const payload = buildPropertyPayload(imageUrls, currentUser.id);
+                await DB.insertProperty(payload);
+
+                loadingOverlay.style.display = 'none';
+                alert('✅ تم نشر الإعلان بنجاح!');
+                window.location.href = 'profile.html';
+
+            } catch (error) {
+                console.error('❌ Error:', error);
+                loadingOverlay.style.display = 'none';
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-rocket"></i> نشر الإعلان الآن';
+
+                let errorMessage = 'حدث خطأ: ';
+                if (error.code === '42501' || error.message?.includes('row-level security')) {
+                    errorMessage += 'ليس لديك صلاحية لإضافة الإعلان. تأكد من تسجيل الدخول.';
+                } else if (error.message?.includes('Bucket') || error.statusCode === '404') {
+                    errorMessage += 'ليس لديك صلاحية لرفع الصور أو الـ Bucket غير موجود.';
+                } else {
+                    errorMessage += error.message;
+                }
+                alert('❌ ' + errorMessage);
+            }
+        });
+
+        console.log('🎉 Add property page ready (Modular via app.js)');
+    </script>
+</body>
+</html>
