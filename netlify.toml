@@ -1,0 +1,11 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+# قاعدة التحويل مكتوبة هنا أيضاً (بالإضافة إلى _redirects) لضمان معالجتها
+# دائماً بغض النظر عن أي إعداد آخر في واجهة نتليفاي.
+[[redirects]]
+  from = "/p/:id"
+  to = "/.netlify/functions/property-og?id=:id"
+  status = 200
+  force = true
