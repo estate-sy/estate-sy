@@ -12,10 +12,8 @@
 const SUPABASE_URL      = 'https://pgmpyzmaadmixzwdcfdd.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_4OClIc8ci2545V8pzyr4RA_4X26Li0x';
 
-const PROPERTY_TYPE_LABELS = { apartment: 'شقة', villa: 'فيلا', land: 'أرض', shop: 'محل تجاري', office: 'مكتب' };
-
-const SITE_URL   = 'https://estate-sy.netlify.app';
-const FALLBACK_IMAGE = `${SITE_URL}/img/fallback.png`; // ⚠️ تأكد من رفع صورة بمقاس 1200×630 بهذا الاسم في مجلد img/
+const SITE_URL        = 'https://estate-sy.netlify.app';
+const FALLBACK_IMAGE  = `${SITE_URL}/img/fallback.png`; // ⚠️ تأكد من رفع صورة بمقاس 1200×630 بهذا الاسم في مجلد img/
 
 function escapeHtml(str = '') {
     return String(str)
@@ -38,6 +36,29 @@ async function fetchProperty(id) {
     return rows?.[0] || null;
 }
 
+/** يركّب العنوان من property_type + " في " + city + " - " + area_name (وفق أعمدة الجدول بالضبط) */
+function buildTitle(property) {
+    let title = `${property.property_type} في ${property.city}`;
+    if (property.area_name) title += ` - ${property.area_name}`;
+    return title;
+}
+
+/** يركّب الوصف من description + السعر + العملة */
+function buildDescription(property) {
+    const priceText = `${Number(property.price).toLocaleString()} ${property.currency || ''}`.trim();
+    const base = property.description ? property.description.trim() : '';
+    const full = base ? `${base} — السعر: ${priceText}` : `السعر: ${priceText}`;
+    return full.length > 200 ? full.slice(0, 197) + '...' : full;
+}
+
+/** يأخذ أول رابط من مصفوفة images (JSON array)، وإلا يرجع صورة الاحتياط */
+function buildImage(property) {
+    if (Array.isArray(property.images) && property.images.length > 0 && property.images[0]) {
+        return property.images[0];
+    }
+    return FALLBACK_IMAGE;
+}
+
 exports.handler = async (event) => {
     const id = event.queryStringParameters?.id;
 
@@ -45,40 +66,48 @@ exports.handler = async (event) => {
         return { statusCode: 400, body: 'Missing property id' };
     }
 
-    const property = await fetchProperty(id);
-
     // رابط الصفحة الحقيقية التي يُحوَّل إليها الزائر البشري
     const realUrl = `${SITE_URL}/details.html?id=${id}`;
 
+    let property = null;
+    try {
+        property = await fetchProperty(id);
+    } catch (err) {
+        console.error('❌ property-og: fetch failed:', err.message);
+        property = null;
+    }
+
+    // فشل الجلب أو العقار غير موجود (حُذف مثلاً) — بطاقة احتياطية عامة + تحويل فوري
     if (!property) {
-        // عقار غير موجود (حُذف مثلاً) — نحوّل مباشرة دون بطاقة معاينة خاصة
+        const fallbackHtml = buildHtml({
+            title: 'العقارات السورية',
+            description: 'منصة العقارات السورية - بيع وإيجار الشقق والأراضي والمحلات في سوريا',
+            image: FALLBACK_IMAGE,
+            url: realUrl
+        });
         return {
-            statusCode: 302,
-            headers: { Location: realUrl }
+            statusCode: 200,
+            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+            body: fallbackHtml
         };
     }
 
-    const typeLabel = PROPERTY_TYPE_LABELS[property.property_type] || property.property_type;
+    const html = buildHtml({
+        title: buildTitle(property),
+        description: buildDescription(property),
+        image: buildImage(property),
+        url: realUrl
+    });
 
-    // العنوان: property_type + " في " + city + " - " + area_name
-    const title = `${typeLabel} في ${property.city} - ${property.area_name || ''}`.trim();
+    return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        body: html
+    };
+};
 
-    // السعر مُنسّق مع العملة (price + currency)
-    const priceText = property.price
-        ? `${Number(property.price).toLocaleString()} ${property.currency || ''}`.trim()
-        : '';
-
-    // الوصف: description + السعر
-    const baseDescription = property.description || `${typeLabel} في ${property.city}`;
-    const rawDescription = priceText ? `${baseDescription} - السعر: ${priceText}` : baseDescription;
-    const description = rawDescription.length > 160 ? rawDescription.slice(0, 157) + '...' : rawDescription;
-
-    // الصورة: أول رابط من مصفوفة images وإلا صورة fallback
-    const image = (Array.isArray(property.images) && property.images.length > 0)
-        ? property.images[0]
-        : FALLBACK_IMAGE;
-
-    const html = `<!DOCTYPE html>
+function buildHtml({ title, description, image, url }) {
+    return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -91,7 +120,7 @@ exports.handler = async (event) => {
     <meta property="og:image" content="${escapeHtml(image)}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:url" content="${escapeHtml(realUrl)}">
+    <meta property="og:url" content="${escapeHtml(url)}">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="${escapeHtml(title)}">
@@ -99,18 +128,12 @@ exports.handler = async (event) => {
     <meta name="twitter:image" content="${escapeHtml(image)}">
 
     <!-- تحويل فوري للزائر البشري (المتصفحات الحقيقية) نحو الصفحة الفعلية -->
-    <meta http-equiv="refresh" content="0; url=${escapeHtml(realUrl)}">
-    <link rel="canonical" href="${escapeHtml(realUrl)}">
-    <script>window.location.replace(${JSON.stringify(realUrl)});</script>
+    <meta http-equiv="refresh" content="0; url=${escapeHtml(url)}">
+    <link rel="canonical" href="${escapeHtml(url)}">
+    <script>window.location.replace(${JSON.stringify(url)});</script>
 </head>
 <body>
-    <p>جاري تحويلك... <a href="${escapeHtml(realUrl)}">اضغط هنا إن لم يتم التحويل تلقائياً</a></p>
+    <p>جاري تحويلك... <a href="${escapeHtml(url)}">اضغط هنا إن لم يتم التحويل تلقائياً</a></p>
 </body>
 </html>`;
-
-    return {
-        statusCode: 200,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
-        body: html
-    };
-};
+}
